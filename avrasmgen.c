@@ -64,7 +64,7 @@ static int addlabeladdr(uint32_t addr)
 
     /* Reallocate when limit reached, increase capacity by DEFAULT_LABELS_SIZE */
     } else if (labelscount >= labelssize) {
-        newlabels = realloc(labels, labelssize + DEFAULT_LABELS_SIZE);
+        newlabels = realloc(labels, (labelssize + DEFAULT_LABELS_SIZE) * sizeof(struct labelstruct));
         if (!newlabels) {
             fprintf(stderr, "Error allocating memory.\n");
             return 0;
