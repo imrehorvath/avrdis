@@ -16,10 +16,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "avrdis.h"
 
 #define DEFAULT_LABELS_SIZE 64
+#define PADDING_TAB_SIZE 4
 
 struct labelstruct {
     uint32_t address;
@@ -29,88 +31,6 @@ struct labelstruct {
 static struct labelstruct *labels = NULL;
 static size_t labelscount = 0;
 static size_t labelssize = 0;
-
-static void freelabels(void)
-{
-    size_t i;
-    char *label;
-
-    if (labels) {
-        for (i = 0; i < labelscount; i++)
-            if ((label = labels[i].label))
-                free(label);
-        free(labels);
-    }
-
-    labels = NULL;
-    labelscount = labelssize = 0;
-}
-
-static int addlabeladdr(uint32_t addr)
-{
-    struct labelstruct *newlabels;
-    size_t i;
-
-    /* Dynamic size management */
-    /* Initial allocation */
-    if (!labelssize) {
-        labels = calloc(DEFAULT_LABELS_SIZE, sizeof(struct labelstruct));
-        if (!labels) {
-            fprintf(stderr, "Error allocating memory.\n");
-            return 0;
-        }
-        labelscount = 0;
-        labelssize = DEFAULT_LABELS_SIZE;
-
-    /* Reallocate when limit reached, increase capacity by DEFAULT_LABELS_SIZE */
-    } else if (labelscount >= labelssize) {
-        newlabels = realloc(labels, (labelssize + DEFAULT_LABELS_SIZE) * sizeof(struct labelstruct));
-        if (!newlabels) {
-            fprintf(stderr, "Error allocating memory.\n");
-            return 0;
-        }
-        labels = newlabels;
-        labelssize += DEFAULT_LABELS_SIZE;
-    }
-
-    /* Skip already added addresses */
-    /* Not yet sorted at this point, so do linear search */
-    for (i = 0; i < labelscount; i++)
-        if (labels[i].address == addr)
-            return 1;
-
-    /* Add address in the order its found */
-    labels[labelscount++].address = addr;
-
-    return 1;
-}
-
-static int comp(const void *lhs, const void *rhs)
-{
-    const struct labelstruct *l = lhs;
-    const struct labelstruct *r = rhs;
-
-    if (l->address < r->address)
-        return -1;
-
-    if (l->address > r->address)
-        return 1;
-
-    return 0;    
-}
-
-static const char *lookuplabel(uint32_t addr)
-{
-    struct labelstruct key = { .address = addr };
-    struct labelstruct *elem;
-
-    /* Binary search on sorted array */
-    elem = bsearch(&key, labels, labelscount, sizeof(struct labelstruct), comp);
-    if (elem)
-        return elem->label;
-
-    return NULL;
-}
 
 static int condrelbranch(uint16_t word, uint32_t address, const char **mnemonic, uint32_t *targetaddr)
 {
@@ -1166,6 +1086,74 @@ static int xch(uint16_t word, int *d)
     return 1;
 }
 
+static void freelabels(void)
+{
+    size_t i;
+    char *label;
+
+    if (labels) {
+        for (i = 0; i < labelscount; i++)
+            if ((label = labels[i].label))
+                free(label);
+        free(labels);
+    }
+
+    labels = NULL;
+    labelscount = labelssize = 0;
+}
+
+static int addlabeladdr(uint32_t addr)
+{
+    struct labelstruct *newlabels;
+    size_t i;
+
+    /* Initial allocation */
+    if (!labelssize) {
+        labels = calloc(DEFAULT_LABELS_SIZE, sizeof(struct labelstruct));
+        if (!labels) {
+            fprintf(stderr, "Error allocating memory.\n");
+            return 0;
+        }
+        labelscount = 0;
+        labelssize = DEFAULT_LABELS_SIZE;
+
+    /* Reallocate when limit reached, increase capacity by DEFAULT_LABELS_SIZE */
+    } else if (labelscount >= labelssize) {
+        newlabels = realloc(labels, (labelssize + DEFAULT_LABELS_SIZE) * sizeof(struct labelstruct));
+        if (!newlabels) {
+            fprintf(stderr, "Error allocating memory.\n");
+            return 0;
+        }
+        labels = newlabels;
+        labelssize += DEFAULT_LABELS_SIZE;
+    }
+
+    /* Skip already added addresses */
+    /* Not yet sorted at this point, so do linear search */
+    for (i = 0; i < labelscount; i++)
+        if (labels[i].address == addr)
+            return 1;
+
+    /* Add address in the order its found */
+    labels[labelscount++].address = addr;
+
+    return 1;
+}
+
+static int comp(const void *lhs, const void *rhs)
+{
+    const struct labelstruct *l = lhs;
+    const struct labelstruct *r = rhs;
+
+    if (l->address < r->address)
+        return -1;
+
+    if (l->address > r->address)
+        return 1;
+
+    return 0;
+}
+
 static int collectlabeladdrs(struct wordlist *wl)
 {
     uint32_t targetaddr;
@@ -1217,6 +1205,19 @@ static int genlabels(void)
     return 1;
 }
 
+static const char *lookuplabel(uint32_t addr)
+{
+    struct labelstruct key = { .address = addr };
+    struct labelstruct *elem;
+
+    /* Binary search on sorted array */
+    elem = bsearch(&key, labels, labelscount, sizeof(struct labelstruct), comp);
+    if (elem)
+        return elem->label;
+
+    return NULL;
+}
+
 void emitavrasm(struct ihex *ih, int listing)
 {
     struct wordlist *wl;
@@ -1225,247 +1226,270 @@ void emitavrasm(struct ihex *ih, int listing)
     int skip;
     uint32_t targetaddr;
     uint32_t lastaddr = 0;
+    size_t padding = 0, pd, lablen;
 
     if (!ih)
         return;
 
-    if (collectlabeladdrs(ih->words) && genlabels())
-        for (wl = ih->words; wl; wl = wl->next) {        
+    if (!collectlabeladdrs(ih->words)) {
+        freelabels();   /* Free the internally used, already allocated memory on failure */
+        return;
+    }
 
-            /* When there is a discontinuity in the address, emit an .org directive */
-            if (!listing && lastaddr+1 != wl->address)  /* Except for when listing mode is enabled */
-                printf(".org 0x%04x\n", wl->address);
+    if (!genlabels()) {
+        freelabels();   /* Free the internally used, already allocated memory on failure */
+        return;
+    }
 
-            /* Include word address and instruction word when in listing mode */
+    if (labelscount)
+        padding = ((strlen(labels[labelscount-1].label)+1)/PADDING_TAB_SIZE+1)*PADDING_TAB_SIZE;
+
+    /* Main disassembly loop */
+    for (wl = ih->words; wl; wl = wl->next) {
+
+        /* If there is a discontinuity in the address, emit a .org directive */
+        if (!listing && lastaddr+1 != wl->address) {
+            for (pd = 0; pd < padding; pd++)
+                putc(' ', stdout);
+            printf(".org 0x%04x\n", wl->address);
+        }
+
+        /* Prepend word address and instruction word when in listing mode */
+        if (listing)
+            printf("%05x: %04x ", wl->address, wl->word);
+
+        /* If there is a label for this address, then print the label */
+        if ((label = lookuplabel(wl->address)))
+            printf("%s:", label), lablen = strlen(label)+1;
+        else
+            lablen = 0;
+
+        /* Pad disassembled code line */
+        for (pd = 0; pd < padding-lablen; pd++)
+            putc(' ', stdout);
+
+        /* Generate symbolic instructions from opcode */
+        if (adc(wl->word, &d, &r))
+            if (d != r)
+                printf("adc r%d, r%d\n", d, r);
+            else
+                printf("rol r%d\n", d);
+        else if (add(wl->word, &d, &r))
+            if (d != r)
+                printf("add r%d, r%d\n", d, r);
+            else
+                printf("lsl r%d\n", d);
+        else if (adiw(wl->word, &d, &K))
+            printf("adiw r%d:r%d, %d\n", 2*d+24+1, 2*d+24, K);
+        else if (and(wl->word, &d, &r))
+            if (d != r)
+                printf("and r%d, r%d\n", d, r);
+            else
+                printf("tst r%d\n", d);
+        else if (andi(wl->word, &d, &K))
+            printf("andi r%d, %d\n", d+16, K);
+        else if (asr(wl->word, &d))
+            printf("asr r%d\n", d);
+        else if (bld(wl->word, &d, &b))
+            printf("bld r%d, %d\n", d, b);
+        else if (bst(wl->word, &r, &b))
+            printf("bst r%d, %d\n", r, b);
+        else if (condrelbranch(wl->word, wl->address, &mnemonic, &targetaddr))
+            printf("%s %s\n", mnemonic, lookuplabel(targetaddr));
+        else if (relcalljmp(wl->word, wl->address, &mnemonic, &targetaddr))
+            printf("%s %s\n", mnemonic, lookuplabel(targetaddr));
+        else if (longcalljmp(wl, &mnemonic, &targetaddr)) {
+            printf("%s %s\n", mnemonic, lookuplabel(targetaddr));
+            wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
             if (listing)
-                printf("%05x: %04x ", wl->address, wl->word);
-
-            /* When there is a label for this address, emit the label */
-            if ((label = lookuplabel(wl->address)))
-                printf("%s: ", label);
-
-            /* Generate symbolic instructions from opcode */
-            if (adc(wl->word, &d, &r))
-                if (d != r)
-                    printf("adc r%d, r%d\n", d, r);
-                else
-                    printf("rol r%d\n", d);
-            else if (add(wl->word, &d, &r))
-                if (d != r)
-                    printf("add r%d, r%d\n", d, r);
-                else
-                    printf("lsl r%d\n", d);
-            else if (adiw(wl->word, &d, &K))
-                printf("adiw r%d:r%d, %d\n", 2*d+24+1, 2*d+24, K);
-            else if (and(wl->word, &d, &r))
-                if (d != r)
-                    printf("and r%d, r%d\n", d, r);
-                else
-                    printf("tst r%d\n", d);
-            else if (andi(wl->word, &d, &K))
-                printf("andi r%d, %d\n", d+16, K);
-            else if (asr(wl->word, &d))
-                printf("asr r%d\n", d);
-            else if (bld(wl->word, &d, &b))
-                printf("bld r%d, %d\n", d, b);
-            else if (bst(wl->word, &r, &b))
-                printf("bst r%d, %d\n", r, b);
-            else if (condrelbranch(wl->word, wl->address, &mnemonic, &targetaddr))
-                printf("%s %s\n", mnemonic, lookuplabel(targetaddr));
-            else if (relcalljmp(wl->word, wl->address, &mnemonic, &targetaddr))
-                printf("%s %s\n", mnemonic, lookuplabel(targetaddr));
-            else if (longcalljmp(wl, &mnemonic, &targetaddr)) {
-                printf("%s %s\n", mnemonic, lookuplabel(targetaddr));
+                printf("%05x: %04x\n", wl->address, wl->word);
+        }
+        else if (wl->word == 0x9598)
+            printf("break\n");
+        else if (cbi(wl->word, &A, &b))
+            printf("cbi 0x%02x, %d\n", A, b);
+        else if (wl->word == 0x9488)
+            printf("clc\n");
+        else if (wl->word == 0x94d8)
+            printf("clh\n");
+        else if (wl->word == 0x94f8)
+            printf("cli\n");
+        else if (wl->word == 0x94a8)
+            printf("cln\n");
+        else if (wl->word == 0x94c8)
+            printf("cls\n");
+        else if (wl->word == 0x94e8)
+            printf("clt\n");
+        else if (wl->word == 0x94b8)
+            printf("clv\n");
+        else if (wl->word == 0x9498)
+            printf("clz\n");
+        else if (com(wl->word, &d))
+            printf("com r%d\n", d);
+        else if (cp(wl->word, &d, &r))
+            printf("cp r%d, r%d\n", d, r);
+        else if (cpc(wl->word, &d, &r))
+            printf("cpc r%d, r%d\n", d, r);
+        else if (cpi(wl->word, &d, &K))
+            printf("cpi r%d, %d\n", d+16, K);
+        else if (cpse(wl->word, &d, &r))
+            printf("cpse r%d, r%d\n", d, r);
+        else if (dec(wl->word, &d))
+            printf("dec r%d\n", d);
+        else if (des(wl->word, &K))
+            printf("des 0x%02x\n", K);
+        else if (wl->word == 0x9519)
+            printf("eicall\n");
+        else if (wl->word == 0x9419)
+            printf("eijmp\n");
+        else if (elpm(wl->word, &d, &operand))
+            if (*operand)
+                printf("elpm r%d, %s\n", d, operand);
+            else
+                printf("elpm\n");
+        else if (eor(wl->word, &d, &r))
+            if (d != r)
+                printf("eor r%d, r%d\n", d, r);
+            else
+                printf("clr r%d\n", d);
+        else if (fmul(wl->word, &d, &r))
+            printf("fmul r%d, r%d\n", d+16, r);
+        else if (fmuls(wl->word, &d, &r))
+            printf("fmuls r%d, r%d\n", d+16, r);
+        else if (fmulsu(wl->word, &d, &r))
+            printf("fmulsu r%d, r%d\n", d+16, r);
+        else if (wl->word == 0x9509)
+            printf("icall\n");
+        else if (wl->word == 0x9409)
+            printf("ijmp\n");
+        else if (in(wl->word, &d, &A))
+            printf("in r%d, 0x%02x\n", d, A);
+        else if (inc(wl->word, &d))
+            printf("inc r%d\n", d);
+        else if (lac(wl->word, &d))
+            printf("lac Z, r%d\n", d);
+        else if (las(wl->word, &d))
+            printf("las Z, r%d\n", d);
+        else if (lat(wl->word, &d))
+            printf("lat Z, r%d\n", d);
+        else if (ld(wl->word, &d, &operand, &q))
+            if (q > 0)
+                printf("ldd r%d, %s+%d\n", d, operand, q);
+            else
+                printf("ld r%d, %s\n", d, operand);
+        else if (ldi(wl->word, &d, &K))
+            printf("ldi r%d, %d\n", d+16, K);
+        else if (lds(wl, &skip, &d, &k)) {
+            printf("lds r%d, 0x%02x\n", d, k);
+            if (skip) {
                 wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
                 if (listing)
                     printf("%05x: %04x\n", wl->address, wl->word);
             }
-            else if (wl->word == 0x9598)
-                printf("break\n");
-            else if (cbi(wl->word, &A, &b))
-                printf("cbi 0x%02x, %d\n", A, b);
-            else if (wl->word == 0x9488)
-                printf("clc\n");
-            else if (wl->word == 0x94d8)
-                printf("clh\n");
-            else if (wl->word == 0x94f8)
-                printf("cli\n");
-            else if (wl->word == 0x94a8)
-                printf("cln\n");
-            else if (wl->word == 0x94c8)
-                printf("cls\n");
-            else if (wl->word == 0x94e8)
-                printf("clt\n");
-            else if (wl->word == 0x94b8)
-                printf("clv\n");
-            else if (wl->word == 0x9498)
-                printf("clz\n");
-            else if (com(wl->word, &d))
-                printf("com r%d\n", d);
-            else if (cp(wl->word, &d, &r))
-                printf("cp r%d, r%d\n", d, r);
-            else if (cpc(wl->word, &d, &r))
-                printf("cpc r%d, r%d\n", d, r);
-            else if (cpi(wl->word, &d, &K))
-                printf("cpi r%d, %d\n", d+16, K);
-            else if (cpse(wl->word, &d, &r))
-                printf("cpse r%d, r%d\n", d, r);
-            else if (dec(wl->word, &d))
-                printf("dec r%d\n", d);
-            else if (des(wl->word, &K))
-                printf("des 0x%02x\n", K);
-            else if (wl->word == 0x9519)
-                printf("eicall\n");
-            else if (wl->word == 0x9419)
-                printf("eijmp\n");
-            else if (elpm(wl->word, &d, &operand))
-                if (*operand)
-                    printf("elpm r%d, %s\n", d, operand);
-                else
-                    printf("elpm\n");
-            else if (eor(wl->word, &d, &r))
-                if (d != r)
-                    printf("eor r%d, r%d\n", d, r);
-                else
-                    printf("clr r%d\n", d);
-            else if (fmul(wl->word, &d, &r))
-                printf("fmul r%d, r%d\n", d+16, r);
-            else if (fmuls(wl->word, &d, &r))
-                printf("fmuls r%d, r%d\n", d+16, r);
-            else if (fmulsu(wl->word, &d, &r))
-                printf("fmulsu r%d, r%d\n", d+16, r);
-            else if (wl->word == 0x9509)
-                printf("icall\n");
-            else if (wl->word == 0x9409)
-                printf("ijmp\n");
-            else if (in(wl->word, &d, &A))
-                printf("in r%d, 0x%02x\n", d, A);
-            else if (inc(wl->word, &d))
-                printf("inc r%d\n", d);
-            else if (lac(wl->word, &d))
-                printf("lac Z, r%d\n", d);
-            else if (las(wl->word, &d))
-                printf("las Z, r%d\n", d);
-            else if (lat(wl->word, &d))
-                printf("lat Z, r%d\n", d);
-            else if (ld(wl->word, &d, &operand, &q))
-                if (q > 0) 
-                    printf("ldd r%d, %s+%d\n", d, operand, q);
-                else
-                    printf("ld r%d, %s\n", d, operand);
-            else if (ldi(wl->word, &d, &K))
-                printf("ldi r%d, %d\n", d+16, K);
-            else if (lds(wl, &skip, &d, &k)) {
-                printf("lds r%d, 0x%02x\n", d, k);
-                if (skip) {
-                    wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
-                    if (listing)
-                        printf("%05x: %04x\n", wl->address, wl->word);
-                }
-            }
-            else if (lpm(wl->word, &d, &operand))
-                if (*operand)
-                    printf("lpm r%d, %s\n", d, operand);
-                else
-                    printf("lpm\n");
-            else if (lsr(wl->word, &d))
-                printf("lsr r%d\n", d);
-            else if (mov(wl->word, &d, &r))
-                printf("mov r%d, r%d\n", d, r);
-            else if (movw(wl->word, &d, &r))
-                printf("movw r%d:r%d, r%d:r%d\n", 2*d+1, 2*d, 2*r+1, 2*r);
-            else if (mul(wl->word, &d, &r))
-                printf("mul r%d, r%d\n", d, r);
-            else if (muls(wl->word, &d, &r))
-                printf("muls r%d, r%d\n", d+16, r+16);
-            else if (mulsu(wl->word, &d, &r))
-                printf("mulsu r%d, r%d\n", d+16, r+16);
-            else if (neg(wl->word, &d))
-                printf("neg r%d\n", d);
-            else if (wl->word == 0x0000)
-                printf("nop\n");
-            else if (or(wl->word, &d, &r))
-                printf("or r%d, r%d\n", d, r);
-            else if (ori(wl->word, &d, &K))
-                printf("ori r%d, %d\n", d+16, K);
-            else if (out(wl->word, &A, &r))
-                printf("out 0x%02x, r%d\n", A, r);
-            else if (pop(wl->word, &d))
-                printf("pop r%d\n", d);
-            else if (push(wl->word, &r))
-                printf("push r%d\n", r);
-            else if (wl->word == 0x9508)
-                printf("ret\n");
-            else if (wl->word == 0x9518)
-                printf("reti\n");
-            else if (ror(wl->word, &d))
-                printf("ror r%d\n", d);
-            else if (sbc(wl->word, &d, &r))
-                printf("sbc r%d, r%d\n", d, r);
-            else if (sbci(wl->word, &d, &K))
-                printf("sbci r%d, %d\n", d+16, K);
-            else if (sbi(wl->word, &A, &b))
-                printf("sbi 0x%02x, %d\n", A, b);
-            else if (sbic(wl->word, &A, &b))
-                printf("sbic 0x%02x, %d\n", A, b);
-            else if (sbis(wl->word, &A, &b))
-                printf("sbis 0x%02x, %d\n", A, b);
-            else if (sbiw(wl->word, &d, &K))
-                printf("sbiw r%d:r%d, %d\n", 2*d+24+1, 2*d+24, K);
-            else if (sbrc(wl->word, &r, &b))
-                printf("sbrc r%d, %d\n", r, b);
-            else if (sbrs(wl->word, &r, &b))
-                printf("sbrs r%d, %d\n", r, b);
-            else if (wl->word == 0x9408)
-                printf("sec\n");
-            else if (wl->word == 0x9458)
-                printf("seh\n");
-            else if (wl->word == 0x9478)
-                printf("sei\n");
-            else if (wl->word == 0x9428)
-                printf("sen\n");
-            else if (wl->word == 0x9448)
-                printf("ses\n");
-            else if (wl->word == 0x9468)
-                printf("set\n");
-            else if (wl->word == 0x9438)
-                printf("sev\n");
-            else if (wl->word == 0x9418)
-                printf("sez\n");
-            else if (wl->word == 0x9588)
-                printf("sleep\n");
-            else if (wl->word == 0x95e8)
-                printf("spm\n");
-            else if (st(wl->word, &operand, &q, &r))
-                if (q > 0) 
-                    printf("std %s+%d, r%d\n", operand, q, r);
-                else
-                    printf("st %s, r%d\n", operand, r);
-            else if (sts(wl, &skip, &k, &r)) {
-                printf("sts 0x%02x, r%d\n", k, r);
-                if (skip) {
-                    wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
-                    if (listing)
-                        printf("%05x: %04x\n", wl->address, wl->word);
-                }
-            }
-            else if (sub(wl->word, &d, &r))
-                printf("sub r%d, r%d\n", d, r);
-            else if (subi(wl->word, &d, &K))
-                printf("subi r%d, %d\n", d+16, K);
-            else if (swap(wl->word, &d))
-                printf("swap r%d\n", d);
-            else if (wl->word == 0x95a8)
-                printf("wdr\n");
-            else if (xch(wl->word, &d))
-                printf("xch Z, r%d\n", d);
-            else 
-                printf(".dw 0x%04x\n", wl->word);
-
-            /* Save last address for discontinuity check */
-            lastaddr = wl->address;
         }
+        else if (lpm(wl->word, &d, &operand))
+            if (*operand)
+                printf("lpm r%d, %s\n", d, operand);
+            else
+                printf("lpm\n");
+        else if (lsr(wl->word, &d))
+            printf("lsr r%d\n", d);
+        else if (mov(wl->word, &d, &r))
+            printf("mov r%d, r%d\n", d, r);
+        else if (movw(wl->word, &d, &r))
+            printf("movw r%d:r%d, r%d:r%d\n", 2*d+1, 2*d, 2*r+1, 2*r);
+        else if (mul(wl->word, &d, &r))
+            printf("mul r%d, r%d\n", d, r);
+        else if (muls(wl->word, &d, &r))
+            printf("muls r%d, r%d\n", d+16, r+16);
+        else if (mulsu(wl->word, &d, &r))
+            printf("mulsu r%d, r%d\n", d+16, r+16);
+        else if (neg(wl->word, &d))
+            printf("neg r%d\n", d);
+        else if (wl->word == 0x0000)
+            printf("nop\n");
+        else if (or(wl->word, &d, &r))
+            printf("or r%d, r%d\n", d, r);
+        else if (ori(wl->word, &d, &K))
+            printf("ori r%d, %d\n", d+16, K);
+        else if (out(wl->word, &A, &r))
+            printf("out 0x%02x, r%d\n", A, r);
+        else if (pop(wl->word, &d))
+            printf("pop r%d\n", d);
+        else if (push(wl->word, &r))
+            printf("push r%d\n", r);
+        else if (wl->word == 0x9508)
+            printf("ret\n");
+        else if (wl->word == 0x9518)
+            printf("reti\n");
+        else if (ror(wl->word, &d))
+            printf("ror r%d\n", d);
+        else if (sbc(wl->word, &d, &r))
+            printf("sbc r%d, r%d\n", d, r);
+        else if (sbci(wl->word, &d, &K))
+            printf("sbci r%d, %d\n", d+16, K);
+        else if (sbi(wl->word, &A, &b))
+            printf("sbi 0x%02x, %d\n", A, b);
+        else if (sbic(wl->word, &A, &b))
+            printf("sbic 0x%02x, %d\n", A, b);
+        else if (sbis(wl->word, &A, &b))
+            printf("sbis 0x%02x, %d\n", A, b);
+        else if (sbiw(wl->word, &d, &K))
+            printf("sbiw r%d:r%d, %d\n", 2*d+24+1, 2*d+24, K);
+        else if (sbrc(wl->word, &r, &b))
+            printf("sbrc r%d, %d\n", r, b);
+        else if (sbrs(wl->word, &r, &b))
+            printf("sbrs r%d, %d\n", r, b);
+        else if (wl->word == 0x9408)
+            printf("sec\n");
+        else if (wl->word == 0x9458)
+            printf("seh\n");
+        else if (wl->word == 0x9478)
+            printf("sei\n");
+        else if (wl->word == 0x9428)
+            printf("sen\n");
+        else if (wl->word == 0x9448)
+            printf("ses\n");
+        else if (wl->word == 0x9468)
+            printf("set\n");
+        else if (wl->word == 0x9438)
+            printf("sev\n");
+        else if (wl->word == 0x9418)
+            printf("sez\n");
+        else if (wl->word == 0x9588)
+            printf("sleep\n");
+        else if (wl->word == 0x95e8)
+            printf("spm\n");
+        else if (st(wl->word, &operand, &q, &r))
+            if (q > 0)
+                printf("std %s+%d, r%d\n", operand, q, r);
+            else
+                printf("st %s, r%d\n", operand, r);
+        else if (sts(wl, &skip, &k, &r)) {
+            printf("sts 0x%02x, r%d\n", k, r);
+            if (skip) {
+                wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
+                if (listing)
+                    printf("%05x: %04x\n", wl->address, wl->word);
+            }
+        }
+        else if (sub(wl->word, &d, &r))
+            printf("sub r%d, r%d\n", d, r);
+        else if (subi(wl->word, &d, &K))
+            printf("subi r%d, %d\n", d+16, K);
+        else if (swap(wl->word, &d))
+            printf("swap r%d\n", d);
+        else if (wl->word == 0x95a8)
+            printf("wdr\n");
+        else if (xch(wl->word, &d))
+            printf("xch Z, r%d\n", d);
+        else
+            printf(".dw 0x%04x\n", wl->word);
 
-    /* When tere is nothing more to do, free the memory */
+        /* Save last address for discontinuity check */
+        lastaddr = wl->address;
+    }   /* Main disassembly loop */
+
+    /* Free the internally used allocated memory after completion */
     freelabels();
 }
