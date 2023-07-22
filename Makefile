@@ -1,4 +1,4 @@
-CC=clang
+CC=gcc
 CFLAGS=-I. -Wall -O2
 DEPS=avrdis.h
 OBJECTS=main.o ihexparser.o avrasmgen.o
