@@ -2,8 +2,9 @@ CC=gcc
 CFLAGS=-I. -Wall -O2
 DEPS=avrdis.h
 OBJECTS=main.o ihexparser.o avrasmgen.o
+PREFIX?=/usr/local
 
-.PHONY: all clean
+.PHONY: all clean install
 
 all: avrdis
 
@@ -14,4 +15,8 @@ avrdis: $(OBJECTS)
 	$(CC) -o $@ $^
 
 clean:
-	rm -f $(OBJECTS)
+	rm -f $(OBJECTS) avrdis
+
+install: all
+	install -d $(DESTDIR)$(PREFIX)/bin/
+	install -m 755 avrdis $(DESTDIR)$(PREFIX)/bin/
