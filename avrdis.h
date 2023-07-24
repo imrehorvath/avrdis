@@ -17,24 +17,16 @@
 
 #include <stdint.h>
 
-/* ihexparser */
-
 struct wordlist {
     struct wordlist *next;
     uint32_t address;
     uint16_t word;
 };
 
-struct ihex {
-    uint16_t extsegaddr;
-    struct wordlist *words;
-};
+void freewordlist(struct wordlist *wl);
 
-struct ihex *parseihexfile(const char *filename);
-void freeihexdata(struct ihex *ih);
+struct wordlist *parseihexfile(const char *filename);
 
-/* avrasmgen */
-
-void emitavrasm(struct ihex *ih, int listing);
+void emitavrasm(struct wordlist *wl, int listing);
 
 #endif /* _AVRDIS_H_ */

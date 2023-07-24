@@ -2,7 +2,7 @@
  * 
  * Description:
  *     Main module for the avrdis project, handles command line arguments and
- *     calls the ihex parser and the AVR asm generator to produce the output.
+ *     calls the input parser and the AVR asm generator to produce the output.
  * 
  * Author:
  *     Imre Horvath <imi [dot] horvath [at] gmail [dot] com> (c) 2023
@@ -38,7 +38,7 @@ int main(int argc, char **argv)
 {
     int i, listing = 0;
     const char *filename = NULL;
-    struct ihex *ih;
+    struct wordlist *wl;
 
     command = basename(argv[0]);
 
@@ -62,14 +62,14 @@ int main(int argc, char **argv)
     if (!filename)
         fprintf(stderr, "No filename specified\n"), usage(1);
 
-    ih = parseihexfile(filename);
-    if (!ih) {
+    wl = parseihexfile(filename);
+    if (!wl) {
         fprintf(stderr, "Error parsing file %s\n", filename);
         return 1;
     }
 
-    emitavrasm(ih, listing);
-    freeihexdata(ih);
+    emitavrasm(wl, listing);
+    freewordlist(wl);
 
     return 0;
 }

@@ -1128,8 +1128,7 @@ static int addlabeladdr(uint32_t addr)
         labelssize += DEFAULT_LABELS_SIZE;
     }
 
-    /* Skip already added addresses */
-    /* Not yet sorted at this point, so do linear search */
+    /* Skip already added addresses, not yet sorted at this point, so perform linear search */
     for (i = 0; i < labelscount; i++)
         if (labels[i].address == addr)
             return 1;
@@ -1178,8 +1177,9 @@ static int collectlabeladdrs(struct wordlist *wl)
         }
     }
 
-    /* Sort addresses in ascending order */
-    qsort(labels, labelscount, sizeof(struct labelstruct), comp);
+    /* Sort addresses in ascending order, if ther are any */
+    if (labels)
+        qsort(labels, labelscount, sizeof(struct labelstruct), comp);
 
     return 1;
 }
@@ -1210,6 +1210,9 @@ static const char *lookuplabel(uint32_t addr)
     struct labelstruct key = { .address = addr };
     struct labelstruct *elem;
 
+    if (!labels)
+        return NULL;
+
     /* Binary search on sorted array */
     elem = bsearch(&key, labels, labelscount, sizeof(struct labelstruct), comp);
     if (elem)
@@ -1218,9 +1221,8 @@ static const char *lookuplabel(uint32_t addr)
     return NULL;
 }
 
-void emitavrasm(struct ihex *ih, int listing)
+void emitavrasm(struct wordlist *wl, int listing)
 {
-    struct wordlist *wl;
     const char *label, *mnemonic, *operand;
     int d, r, b, k, K, A, q;
     int skip;
@@ -1228,10 +1230,7 @@ void emitavrasm(struct ihex *ih, int listing)
     uint32_t lastaddr = 0;
     size_t padding = 0, pd, lablen;
 
-    if (!ih)
-        return;
-
-    if (!collectlabeladdrs(ih->words)) {
+    if (!collectlabeladdrs(wl)) {
         freelabels();   /* Free the internally used, already allocated memory on failure */
         return;
     }
@@ -1245,7 +1244,7 @@ void emitavrasm(struct ihex *ih, int listing)
         padding = ((strlen(labels[labelscount-1].label)+1)/PADDING_TAB_SIZE+1)*PADDING_TAB_SIZE;
 
     /* Main disassembly loop */
-    for (wl = ih->words; wl; wl = wl->next) {
+    for (; wl; wl = wl->next) {
 
         /* If there is a discontinuity in the address, emit a .org directive */
         if (!listing && lastaddr+1 != wl->address) {

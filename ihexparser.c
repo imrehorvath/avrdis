@@ -40,47 +40,27 @@ static int parsehexbyte(FILE *fp, uint8_t *b)
         buf[i] = c;
     }
 
-    *b = strtoul(buf, NULL, 16);
+    if (b)
+        *b = strtoul(buf, NULL, 16);
+
     return 1;
 }
 
-static void freewordlist(struct wordlist *wl)
-{
-    struct wordlist *temp;
-
-    while (wl) {
-        temp = wl;
-        wl = wl->next;
-        free(temp);
-    }
-}
-
-struct ihex *parseihexfile(const char *filename)
+struct wordlist *parseihexfile(const char *filename)
 {
     int c, lineno = 1, eofr = 0, recparsed = 0;
-    uint8_t bytecount, recordtype, chksum, wordcount, wh, wl, wordsum, addrh, addrl;
+    uint8_t bytecount, recordtype, chksum, wordcount, wdh, wdl, wordsum, addrh, addrl;
     uint8_t extsah, extsal;
+    uint16_t extsegaddr = 0;
     uint32_t wordaddr;
-    struct wordlist *newword, *wlst, *firstdword, *lastdword;
+    struct wordlist *newword, *wlst, *firstrecwd, *lastrecwd;
     struct wordlist *firstword = NULL, *lastword = NULL;
-    struct ihex *ih = NULL;
     FILE *fp = fopen(filename, "r");
 
     if (!fp) {
         fprintf(stderr, "Error opening file: %s\n", filename);
         return NULL;
     }
-
-    /* Allocate structure to hold parsed data */
-    ih = (struct ihex *) malloc(sizeof(struct ihex));
-    if (!ih) {
-        fprintf(stderr, "Error allocating memory.\n");
-        freewordlist(firstword);
-        return NULL;
-    }
-
-    /* Initialize Ext Seg Addr. to 0 */
-    ih->extsegaddr = 0;
 
     /* Main parser loop */
     for (;;) {
@@ -148,29 +128,29 @@ struct ihex *parseihexfile(const char *filename)
 
             case IHEX_DATA_RECORD:
 
-                wordaddr = ((ih->extsegaddr << 4) + ((addrh << 8) | addrl)) >> 1;
-                firstdword = lastdword = NULL;
+                wordaddr = ((extsegaddr << 4) + ((addrh << 8) | addrl)) >> 1;
+                firstrecwd = lastrecwd = NULL;
 
                 /* Data word parser loop */
                 for (wordcount = bytecount >> 1; wordcount; wordcount--, wordaddr++) {
 
                     /* Parse data word low byte */
-                    if (!parsehexbyte(fp, &wl)) {
+                    if (!parsehexbyte(fp, &wdl)) {
                         fprintf(stderr, 
                                 "Error parsing \"word\" low byte in record at line %d in file %s.\n", 
                                 lineno, filename);
-                        freewordlist(firstdword);
+                        freewordlist(firstrecwd);
                         freewordlist(firstword);
                         fclose(fp);
                         return NULL;
                     }
 
                     /* Parse data word high byte */
-                    if (!parsehexbyte(fp, &wh)) {
+                    if (!parsehexbyte(fp, &wdh)) {
                         fprintf(stderr, 
                                 "Error parsing \"word\" high byte in record at line %d in file %s.\n", 
                                 lineno, filename);
-                        freewordlist(firstdword);
+                        freewordlist(firstrecwd);
                         freewordlist(firstword);
                         fclose(fp);
                         return NULL;
@@ -180,7 +160,7 @@ struct ihex *parseihexfile(const char *filename)
                     newword = (struct wordlist *) malloc(sizeof(struct wordlist));
                     if (!newword) {
                         fprintf(stderr, "Error allocating memory.\n");
-                        freewordlist(firstdword);
+                        freewordlist(firstrecwd);
                         freewordlist(firstword);
                         fclose(fp);
                         return NULL;
@@ -189,14 +169,14 @@ struct ihex *parseihexfile(const char *filename)
                     /* Fill word structure */
                     newword->next = NULL;
                     newword->address = wordaddr;
-                    newword->word = (wh << 8) | wl;
+                    newword->word = (wdh << 8) | wdl;
  
-                    /* Link word structure to the local list */
-                    if (!firstdword)
-                        firstdword = newword;
+                    /* Link the data record word into a list */
+                    if (!firstrecwd)
+                        firstrecwd = newword;
                     else
-                        lastdword->next = newword;
-                    lastdword = newword;
+                        lastrecwd->next = newword;
+                    lastrecwd = newword;
 
                 } /* Data word parser loop */
 
@@ -205,19 +185,19 @@ struct ihex *parseihexfile(const char *filename)
                     fprintf(stderr, 
                             "Error parsing \"checksum\" in record at line %d in file %s.\n", 
                             lineno, filename);
-                    freewordlist(firstdword);
+                    freewordlist(firstrecwd);
                     freewordlist(firstword);
                     return NULL;
                 }
 
                 /* Calculate data word sum for checksum check */
-                for (wordsum = 0, wlst = firstdword; wlst; wlst = wlst->next)
+                for (wordsum = 0, wlst = firstrecwd; wlst; wlst = wlst->next)
                     wordsum += (wlst->word >> 8) + (wlst->word & 0xff);
 
                 /* Check checksum */
                 if ((uint8_t) (bytecount + addrh + addrl + recordtype + wordsum + chksum) != 0) {
                     fprintf(stderr, "Checksum error at line %d in file %s.\n", lineno, filename);
-                    freewordlist(firstdword);
+                    freewordlist(firstrecwd);
                     freewordlist(firstword);
                     fclose(fp);
                     return NULL;
@@ -225,10 +205,10 @@ struct ihex *parseihexfile(const char *filename)
 
                 /* Add accumulated list of data words to the word list */
                 if (!firstword)
-                    firstword = firstdword;
+                    firstword = firstrecwd;
                 else
-                    lastword->next = firstdword;
-                lastword = lastdword;
+                    lastword->next = firstrecwd;
+                lastword = lastrecwd;
 
                 recparsed = 1;  /* Flag record has been parsed */
                 break;
@@ -302,8 +282,7 @@ struct ihex *parseihexfile(const char *filename)
                     return NULL;
                 }
 
-                /* Fill Ext Seg Addr. in result structure */
-                ih->extsegaddr = (extsah << 8) | extsal;
+                extsegaddr = (extsah << 8) | extsal;
 
                 recparsed = 1;  /* Flag record has been parsed */
                 break;
@@ -349,15 +328,6 @@ struct ihex *parseihexfile(const char *filename)
         return NULL;
     }
 
-    /* Add the collected word list to the result structure */
-    ih->words = firstword;
-
     /* File was successfully parsed */
-    return ih;
-}
-
-void freeihexdata(struct ihex *ih)
-{
-    freewordlist(ih->words);
-    free(ih);
+    return firstword;
 }
