@@ -24,7 +24,7 @@
 #define PADDING_TAB_SIZE 4
 
 struct labelstruct {
-    uint32_t address;
+    uint32_t wordaddress;
     char *label;
 };
 
@@ -32,7 +32,7 @@ static struct labelstruct *labels = NULL;
 static size_t labelscount = 0;
 static size_t labelssize = 0;
 
-static int condrelbranch(uint16_t word, uint32_t address, const char **mnemonic, uint32_t *targetaddr)
+static int condrelbranch(uint16_t word, uint32_t wordaddress, const char **mnemonic, uint32_t *targetwordaddr)
 {
     const char *s;
     int8_t offset;
@@ -93,20 +93,21 @@ static int condrelbranch(uint16_t word, uint32_t address, const char **mnemonic,
     if (mnemonic)
         *mnemonic = s;
 
-    if (targetaddr) {
+    if (targetwordaddr) {
 
         offset = (word & 0x03f8) >> 3;
         /* In case of negative offset, complete the 8 bit signed representation */
         if (word & 0x0200)
             offset |= 0x80; /* Two's complement */
 
-        *targetaddr = address + offset + 1;
+        /* offset means word offset! */
+        *targetwordaddr = wordaddress + offset + 1;
     }
 
     return 1;
 }
 
-static int relcalljmp(uint16_t word, uint32_t address, const char **mnemonic, uint32_t *targetaddr)
+static int relcalljmp(uint16_t word, uint32_t wordaddress, const char **mnemonic, uint32_t *targetwordaddr)
 {
     const char *s;
     int16_t offset;
@@ -125,20 +126,21 @@ static int relcalljmp(uint16_t word, uint32_t address, const char **mnemonic, ui
     if (mnemonic)
         *mnemonic = s;
 
-    if (targetaddr) {
+    if (targetwordaddr) {
 
         offset = word & 0x0fff;
         /* In case of negative offset, complete the 16 bit signed representation */
         if (word & 0x0800)
             offset |= 0xf000;   /* Two's complement */
        
-        *targetaddr = address + offset + 1;
+        /* offset means word offset! */
+        *targetwordaddr = wordaddress + offset + 1;
     }
 
     return 1;
 }
 
-static int longcalljmp(struct wordlist *wl, const char **mnemonic, uint32_t *targetaddr)
+static int longcalljmp(struct wordlist *wl, const char **mnemonic, uint32_t *targetwordaddr)
 {
     const char *s;
 
@@ -161,8 +163,8 @@ static int longcalljmp(struct wordlist *wl, const char **mnemonic, uint32_t *tar
     if (mnemonic)
         *mnemonic = s;
 
-    if (targetaddr)
-        *targetaddr = ((((wl->word & 0x01f0) >> 3) | (wl->word & 0x0001)) << 16) | wl->next->word;
+    if (targetwordaddr)
+        *targetwordaddr = ((((wl->word & 0x01f0) >> 3) | (wl->word & 0x0001)) << 16) | wl->next->word;
 
     return 1;
 }
@@ -1102,7 +1104,7 @@ static void freelabels(void)
     labelscount = labelssize = 0;
 }
 
-static int addlabeladdr(uint32_t addr)
+static int addlabeladdr(uint32_t wordaddress)
 {
     struct labelstruct *newlabels;
     size_t i;
@@ -1130,11 +1132,11 @@ static int addlabeladdr(uint32_t addr)
 
     /* Skip already added addresses, not yet sorted at this point, so perform linear search */
     for (i = 0; i < labelscount; i++)
-        if (labels[i].address == addr)
+        if (labels[i].wordaddress == wordaddress)
             return 1;
 
     /* Add address in the order its found */
-    labels[labelscount++].address = addr;
+    labels[labelscount++].wordaddress = wordaddress;
 
     return 1;
 }
@@ -1144,10 +1146,10 @@ static int comp(const void *lhs, const void *rhs)
     const struct labelstruct *l = lhs;
     const struct labelstruct *r = rhs;
 
-    if (l->address < r->address)
+    if (l->wordaddress < r->wordaddress)
         return -1;
 
-    if (l->address > r->address)
+    if (l->wordaddress > r->wordaddress)
         return 1;
 
     return 0;
@@ -1155,23 +1157,23 @@ static int comp(const void *lhs, const void *rhs)
 
 static int collectlabeladdrs(struct wordlist *wl)
 {
-    uint32_t targetaddr;
+    uint32_t targetwordaddr;
 
     for (; wl; wl = wl->next) {
 
         /* BRCC, BRCS, BREQ, BRGE, BRHC, BRHS, BRID, BRIE, BRLT, BRMI, BRNE, BRPL, BRTC, BRTS, BRVC and BRVS */
-        if (condrelbranch(wl->word, wl->wordaddress, NULL, &targetaddr)) {
-            if (!addlabeladdr(targetaddr))
+        if (condrelbranch(wl->word, wl->wordaddress, NULL, &targetwordaddr)) {
+            if (!addlabeladdr(targetwordaddr))
                 return 0;
         }
         /* RCALL and RJMP */
-        else if (relcalljmp(wl->word, wl->wordaddress, NULL, &targetaddr)) {
-            if (!addlabeladdr(targetaddr))
+        else if (relcalljmp(wl->word, wl->wordaddress, NULL, &targetwordaddr)) {
+            if (!addlabeladdr(targetwordaddr))
                 return 0;
         }
         /* CALL and JMP */
-        else if (longcalljmp(wl, NULL, &targetaddr)) {
-            if (!addlabeladdr(targetaddr))
+        else if (longcalljmp(wl, NULL, &targetwordaddr)) {
+            if (!addlabeladdr(targetwordaddr))
                 return 0;
             wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
         }
@@ -1205,9 +1207,9 @@ static int genlabels(void)
     return 1;
 }
 
-static const char *lookuplabel(uint32_t addr)
+static const char *lookuplabel(uint32_t wordaddress)
 {
-    struct labelstruct key = { .address = addr };
+    struct labelstruct key = { .wordaddress = wordaddress };
     struct labelstruct *elem;
 
     if (!labels)
@@ -1226,8 +1228,8 @@ void emitavrasm(struct wordlist *wl, int listing)
     const char *label, *mnemonic, *operand;
     int d, r, b, k, K, A, q;
     int skip;
-    uint32_t targetaddr;
-    uint32_t lastaddr = 0;
+    uint32_t targetwordaddr;
+    uint32_t lastwordaddr = 0;
     size_t padding = 0, pd, lablen;
 
     if (!collectlabeladdrs(wl)) {
@@ -1247,7 +1249,7 @@ void emitavrasm(struct wordlist *wl, int listing)
     for (; wl; wl = wl->next) {
 
         /* If there is a discontinuity in the address, emit a .org directive */
-        if (!listing && lastaddr+1 != wl->wordaddress) {
+        if (!listing && lastwordaddr+1 != wl->wordaddress) {
             for (pd = 0; pd < padding; pd++)
                 putc(' ', stdout);
             printf(".org 0x%04x\n", wl->wordaddress);
@@ -1293,12 +1295,12 @@ void emitavrasm(struct wordlist *wl, int listing)
             printf("bld r%d, %d\n", d, b);
         else if (bst(wl->word, &r, &b))
             printf("bst r%d, %d\n", r, b);
-        else if (condrelbranch(wl->word, wl->wordaddress, &mnemonic, &targetaddr))
-            printf("%s %s\n", mnemonic, lookuplabel(targetaddr));
-        else if (relcalljmp(wl->word, wl->wordaddress, &mnemonic, &targetaddr))
-            printf("%s %s\n", mnemonic, lookuplabel(targetaddr));
-        else if (longcalljmp(wl, &mnemonic, &targetaddr)) {
-            printf("%s %s\n", mnemonic, lookuplabel(targetaddr));
+        else if (condrelbranch(wl->word, wl->wordaddress, &mnemonic, &targetwordaddr))
+            printf("%s %s\n", mnemonic, lookuplabel(targetwordaddr));
+        else if (relcalljmp(wl->word, wl->wordaddress, &mnemonic, &targetwordaddr))
+            printf("%s %s\n", mnemonic, lookuplabel(targetwordaddr));
+        else if (longcalljmp(wl, &mnemonic, &targetwordaddr)) {
+            printf("%s %s\n", mnemonic, lookuplabel(targetwordaddr));
             wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
             if (listing)
                 printf("C:%05x %04x\n", wl->wordaddress, wl->word);
@@ -1486,7 +1488,7 @@ void emitavrasm(struct wordlist *wl, int listing)
             printf(".dw 0x%04x\n", wl->word);
 
         /* Save last address for discontinuity check */
-        lastaddr = wl->wordaddress;
+        lastwordaddr = wl->wordaddress;
     }   /* Main disassembly loop */
 
     /* Free the internally used allocated memory after completion */
