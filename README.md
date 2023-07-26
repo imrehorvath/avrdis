@@ -25,8 +25,10 @@ When you have an 8-bit AVR microcontroller with an unlocked flash and you want t
 
 ```
 AVR Disassembler for the 8-bit AVRs. v1.0.0 (c) Imre Horvath, 2023
-Usage: avrdis [options] ihexfile
+Usage: avrdis [options] inputfile
+Currently supported inputfile types are: IHEX
+  IHEX: Intel hex, file should have an extension .hex
 Options:
-  -h : Show this usage info and exit.
+  -h : Show this printusage info and exit.
   -l : Listing mode. Instead of just assembly source, include word addresses and instruction words too.
 ```
