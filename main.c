@@ -120,9 +120,6 @@ int main(int argc, char **argv)
             return 1;
     }
 
-    if (!wl)
-        fprintf(stderr, "No contents from parsing the file %s\n", filename), exit(1);
-
     emitavrasm(wl, listing);
     freewordlist(wl);
 

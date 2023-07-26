@@ -1,11 +1,11 @@
     .org 0x0000
-    ldi r16, 8
-    out 0x3e, r16
-    ldi r16, 255
-    out 0x3d, r16
-    cbi 0x05, 0
-    sbi 0x04, 0
-L0: sbi 0x05, 0
-    nop
-    cbi 0x05, 0
-    rjmp L0
+    clr r17
+    in r16, 0x03
+    tst r16
+    breq L0
+    rjmp L1
+L0: inc r17
+L1: call L2
+    .org 0x03ff
+L2: lpm
+    ret

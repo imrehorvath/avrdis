@@ -1,10 +1,10 @@
-00000: e008     ldi r16, 8
-00001: bf0e     out 0x3e, r16
-00002: ef0f     ldi r16, 255
-00003: bf0d     out 0x3d, r16
-00004: 9828     cbi 0x05, 0
-00005: 9a20     sbi 0x04, 0
-00006: 9a28 L0: sbi 0x05, 0
-00007: 0000     nop
-00008: 9828     cbi 0x05, 0
-00009: cffc     rjmp L0
+C:00000 2711     clr r17
+C:00001 b103     in r16, 0x03
+C:00002 2300     tst r16
+C:00003 f009     breq L0
+C:00004 c001     rjmp L1
+C:00005 9513 L0: inc r17
+C:00006 940e L1: call L2
+C:00007 03ff
+C:003ff 95c8 L2: lpm
+C:00400 9508     ret

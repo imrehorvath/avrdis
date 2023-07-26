@@ -19,7 +19,7 @@
 
 struct wordlist {
     struct wordlist *next;
-    uint32_t address;
+    uint32_t wordaddress;
     uint16_t word;
 };
 

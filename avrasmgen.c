@@ -154,7 +154,7 @@ static int longcalljmp(struct wordlist *wl, const char **mnemonic, uint32_t *tar
     }
 
     if (wl->next == NULL) {
-        fprintf(stderr, "2nd word of 32-bit opcode after %05x missing\n", wl->address);
+        fprintf(stderr, "2nd word of 32-bit opcode after word address %05x missing\n", wl->wordaddress);
         return 0;
     }
 
@@ -599,7 +599,7 @@ static int lds(struct wordlist *wl, int *skip, int *d, int *k)
     if ((wl->word & 0xfe0f) == 0x9000) {
 
         if (wl->next == NULL) {
-            fprintf(stderr, "2nd word of 32-bit opcode after %05x missing\n", wl->address);
+            fprintf(stderr, "2nd word of 32-bit opcode after word address %05x missing\n", wl->wordaddress);
             return 0;
         }
 
@@ -1003,7 +1003,7 @@ static int sts(struct wordlist *wl, int *skip, int *k, int *r)
     if ((wl->word & 0xfe0f) == 0x9200) {
 
         if (wl->next == NULL) {
-            fprintf(stderr, "2nd word of 32-bit opcode after %05x missing\n", wl->address);
+            fprintf(stderr, "2nd word of 32-bit opcode after word address %05x missing\n", wl->wordaddress);
             return 0;
         }
 
@@ -1160,12 +1160,12 @@ static int collectlabeladdrs(struct wordlist *wl)
     for (; wl; wl = wl->next) {
 
         /* BRCC, BRCS, BREQ, BRGE, BRHC, BRHS, BRID, BRIE, BRLT, BRMI, BRNE, BRPL, BRTC, BRTS, BRVC and BRVS */
-        if (condrelbranch(wl->word, wl->address, NULL, &targetaddr)) {
+        if (condrelbranch(wl->word, wl->wordaddress, NULL, &targetaddr)) {
             if (!addlabeladdr(targetaddr))
                 return 0;
         }
         /* RCALL and RJMP */
-        else if (relcalljmp(wl->word, wl->address, NULL, &targetaddr)) {
+        else if (relcalljmp(wl->word, wl->wordaddress, NULL, &targetaddr)) {
             if (!addlabeladdr(targetaddr))
                 return 0;
         }
@@ -1247,18 +1247,18 @@ void emitavrasm(struct wordlist *wl, int listing)
     for (; wl; wl = wl->next) {
 
         /* If there is a discontinuity in the address, emit a .org directive */
-        if (!listing && lastaddr+1 != wl->address) {
+        if (!listing && lastaddr+1 != wl->wordaddress) {
             for (pd = 0; pd < padding; pd++)
                 putc(' ', stdout);
-            printf(".org 0x%04x\n", wl->address);
+            printf(".org 0x%04x\n", wl->wordaddress);
         }
 
         /* Prepend word address and instruction word when in listing mode */
         if (listing)
-            printf("%05x: %04x ", wl->address, wl->word);
+            printf("C:%05x %04x ", wl->wordaddress, wl->word);
 
         /* If there is a label for this address, then print the label */
-        if ((label = lookuplabel(wl->address)))
+        if ((label = lookuplabel(wl->wordaddress)))
             printf("%s:", label), lablen = strlen(label)+1;
         else
             lablen = 0;
@@ -1293,15 +1293,15 @@ void emitavrasm(struct wordlist *wl, int listing)
             printf("bld r%d, %d\n", d, b);
         else if (bst(wl->word, &r, &b))
             printf("bst r%d, %d\n", r, b);
-        else if (condrelbranch(wl->word, wl->address, &mnemonic, &targetaddr))
+        else if (condrelbranch(wl->word, wl->wordaddress, &mnemonic, &targetaddr))
             printf("%s %s\n", mnemonic, lookuplabel(targetaddr));
-        else if (relcalljmp(wl->word, wl->address, &mnemonic, &targetaddr))
+        else if (relcalljmp(wl->word, wl->wordaddress, &mnemonic, &targetaddr))
             printf("%s %s\n", mnemonic, lookuplabel(targetaddr));
         else if (longcalljmp(wl, &mnemonic, &targetaddr)) {
             printf("%s %s\n", mnemonic, lookuplabel(targetaddr));
             wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
             if (listing)
-                printf("%05x: %04x\n", wl->address, wl->word);
+                printf("C:%05x %04x\n", wl->wordaddress, wl->word);
         }
         else if (wl->word == 0x9598)
             printf("break\n");
@@ -1383,7 +1383,7 @@ void emitavrasm(struct wordlist *wl, int listing)
             if (skip) {
                 wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
                 if (listing)
-                    printf("%05x: %04x\n", wl->address, wl->word);
+                    printf("C:%05x %04x\n", wl->wordaddress, wl->word);
             }
         }
         else if (lpm(wl->word, &d, &operand))
@@ -1469,7 +1469,7 @@ void emitavrasm(struct wordlist *wl, int listing)
             if (skip) {
                 wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
                 if (listing)
-                    printf("%05x: %04x\n", wl->address, wl->word);
+                    printf("C:%05x %04x\n", wl->wordaddress, wl->word);
             }
         }
         else if (sub(wl->word, &d, &r))
@@ -1486,7 +1486,7 @@ void emitavrasm(struct wordlist *wl, int listing)
             printf(".dw 0x%04x\n", wl->word);
 
         /* Save last address for discontinuity check */
-        lastaddr = wl->address;
+        lastaddr = wl->wordaddress;
     }   /* Main disassembly loop */
 
     /* Free the internally used allocated memory after completion */
