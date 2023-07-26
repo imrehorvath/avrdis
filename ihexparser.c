@@ -46,6 +46,29 @@ static int parsehexbyte(FILE *fp, uint8_t *b)
     return 1;
 }
 
+int ihexfile(const char *filename)
+{
+    FILE *fp = fopen(filename, "r");
+    int c, res = 0;
+
+    if (!fp) {
+        fprintf(stderr, "Error opening file: %s\n", filename);
+        return -1;
+    }
+
+    while ((c = fgetc(fp)) != EOF && c != ':')
+        ;
+    if (c == ':') {
+        while ((c = fgetc(fp)) != EOF && isxdigit(c))
+            ;
+        if (c == '\n' || c == '\r')
+            res = 1;
+    }
+
+    fclose(fp);
+    return res;
+}
+
 struct wordlist *parseihexfile(const char *filename)
 {
     int c, lineno = 1, eofr = 0, recparsed = 0;

@@ -25,8 +25,11 @@ struct wordlist {
 
 void freewordlist(struct wordlist *wl);
 
+int ihexfile(const char *filename);
 struct wordlist *parseihexfile(const char *filename);
 
 void emitavrasm(struct wordlist *wl, int listing);
+
+int strcmpnocase(const char *lhs, const char *rhs);
 
 #endif /* _AVRDIS_H_ */
