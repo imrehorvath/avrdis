@@ -1,8 +1,8 @@
 /*****************************************************************************
  * 
  * Description:
- *     Header for the avrdis project, containing type definitions and proto-
- *     types used across the modules.
+ *     Header for the avrdis project, contains type definitions and prototypes
+ *     used across the modules.
  * 
  * Author:
  *     Imre Horvath <imi [dot] horvath [at] gmail [dot] com> (c) 2023
