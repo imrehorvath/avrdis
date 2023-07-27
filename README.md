@@ -8,7 +8,7 @@ Output is written to stdout. In case of a successful run, the exit status is 0. 
 
 - Maximum portability. It is written in C and uses libc only, no external libraries needed.
 - Simple, straightforward structure of project with only a few modules for the different parts.
-- The modules are decoupled, it is easy to add new input format parsers without touching the other modules.
+- Loosely coupled modules make it is easy to add new input format parsers without touching other parts.
 
 ## Suggested Use Case
 
