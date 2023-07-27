@@ -30,5 +30,5 @@ Currently supported inputfile types are: IHEX
   IHEX: Intel hex format, file should have an extension .hex
 Options:
   -h : Show this usage info and exit.
-  -l : List the word addresses and the raw instructions together with the disassembled assembly code.
+  -l : List word addresses and raw instructions with the disassembled code.
 ```

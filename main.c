@@ -77,7 +77,7 @@ void printusage(void)
     fprintf(stderr, "  IHEX: Intel hex format, file should have an extension .hex\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -h : Show this usage info and exit.\n");
-    fprintf(stderr, "  -l : List the word addresses and the raw instructions together with the disassembled assembly code.\n");
+    fprintf(stderr, "  -l : List word addresses and raw instructions with the disassembled code.\n");
 }
 
 int main(int argc, char **argv)
