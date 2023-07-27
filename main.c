@@ -74,10 +74,10 @@ void printusage(void)
     fprintf(stderr, "AVR Disassembler for the 8-bit AVRs. v%s (c) Imre Horvath, 2023\n", VERSION);
     fprintf(stderr, "Usage: %s [options] inputfile\n", command);
     fprintf(stderr, "Currently supported inputfile types are: IHEX\n");
-    fprintf(stderr, "  IHEX: Intel hex, file should have an extension .hex\n");
+    fprintf(stderr, "  IHEX: Intel hex format, file should have an extension .hex\n");
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -h : Show this printusage info and exit.\n");
-    fprintf(stderr, "  -l : Listing mode. Instead of just assembly source, include word addresses and instruction words too.\n");
+    fprintf(stderr, "  -h : Show this usage info and exit.\n");
+    fprintf(stderr, "  -l : List the word addresses and the raw instructions together with the disassembled assembly code.\n");
 }
 
 int main(int argc, char **argv)
