@@ -21,9 +21,9 @@
 #define VERSION "1.0.0"
 
 enum filetype {
-    ERROR = -1,
-    UNKNOWN,
-    IHEX
+    FILETYPE_ERROR = -1,
+    FILETYPE_UNKNOWN,
+    FILETYPE_IHEX
 };
 
 const char *command;
@@ -58,15 +58,15 @@ int deterfiletype(char *filename)
 
     /* First try to determine by the extension */
     if (ext && !strcmpnocase(ext, "hex"))
-        return IHEX;
+        return FILETYPE_IHEX;
 
     /* Second try to determine by contents */
     if ((check = ihexfile(filename)) == -1)
-        return ERROR;
+        return FILETYPE_ERROR;
     if (check)
-        return IHEX;
+        return FILETYPE_IHEX;
 
-    return UNKNOWN;
+    return FILETYPE_UNKNOWN;
 }
 
 void printusage(void)
@@ -109,13 +109,13 @@ int main(int argc, char **argv)
         fprintf(stderr, "No filename specified\n"), printusage(), exit(1);
 
     switch (deterfiletype(filename)) {
-        case IHEX:
+        case FILETYPE_IHEX:
             wl = parseihexfile(filename);
             break;
-        case UNKNOWN:
+        case FILETYPE_UNKNOWN:
             fprintf(stderr, "Unknown file type for file %s\n", filename), printusage();
             return 1;
-        case ERROR:
+        case FILETYPE_ERROR:
             fprintf(stderr, "Error occured during determining type of file %s\n", filename);
             return 1;
     }

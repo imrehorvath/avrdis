@@ -21,9 +21,11 @@
 
 #include "avrdis.h"
 
-#define IHEX_DATA_RECORD            0x00
-#define IHEX_EOF_RECORD             0x01
-#define IHEX_EXT_SEG_ADDR_RECORD    0x02
+enum recordtype {
+    RECORDTYPE_IHEX_DATA_RECORD         = 0x00,
+    RECORDTYPE_IHEX_EOF_RECORD          = 0x01,
+    RECORDTYPE_IHEX_EXT_SEG_ADDR_RECORD = 0x02
+};
 
 static int parsehexbyte(FILE *fp, uint8_t *b)
 {
@@ -72,7 +74,7 @@ int ihexfile(const char *filename)
 struct wordlist *parseihexfile(const char *filename)
 {
     int c, lineno = 1, eofr = 0, recparsed = 0;
-    uint8_t bytecount, recordtype, chksum, wordcount, wdh, wdl, wordsum, addrh, addrl;
+    uint8_t bytecount, rectype, chksum, wordcount, wdh, wdl, wordsum, addrh, addrl;
     uint8_t extsah, extsal;
     uint16_t extsegaddr = 0;
     uint32_t wordaddress;
@@ -137,7 +139,7 @@ struct wordlist *parseihexfile(const char *filename)
         }
 
         /* Record type */
-        if (!parsehexbyte(fp, &recordtype)) {
+        if (!parsehexbyte(fp, &rectype)) {
             fprintf(stderr, 
                     "Error parsing \"record type\" in record at line %d in file %s.\n", 
                     lineno, filename);
@@ -147,9 +149,9 @@ struct wordlist *parseihexfile(const char *filename)
         }
 
         /* Process records based on their type */
-        switch (recordtype) {
+        switch (rectype) {
 
-            case IHEX_DATA_RECORD:
+            case RECORDTYPE_IHEX_DATA_RECORD:
 
                 wordaddress = ((extsegaddr << 4) + ((addrh << 8) | addrl)) >> 1;
                 firstdatarecword = lastdatarecword = NULL;
@@ -218,7 +220,7 @@ struct wordlist *parseihexfile(const char *filename)
                     wordsum += (wl->word >> 8) + (wl->word & 0xff);
 
                 /* Check checksum */
-                if ((uint8_t) (bytecount + addrh + addrl + recordtype + wordsum + chksum) != 0) {
+                if ((uint8_t) (bytecount + addrh + addrl + rectype + wordsum + chksum) != 0) {
                     fprintf(stderr, "Checksum error at line %d in file %s.\n", lineno, filename);
                     freewordlist(firstdatarecword);
                     freewordlist(firstword);
@@ -236,7 +238,7 @@ struct wordlist *parseihexfile(const char *filename)
                 recparsed = 1;  /* Flag record has been parsed */
                 break;
 
-            case IHEX_EOF_RECORD:
+            case RECORDTYPE_IHEX_EOF_RECORD:
 
                 if (!parsehexbyte(fp, &chksum)) {
                     fprintf(stderr, 
@@ -248,7 +250,7 @@ struct wordlist *parseihexfile(const char *filename)
                 }
 
                 /* Check checksum */
-                if ((uint8_t) (bytecount + addrh + addrl + recordtype + chksum) != 0) {
+                if ((uint8_t) (bytecount + addrh + addrl + rectype + chksum) != 0) {
                     fprintf(stderr, "Checksum error at line %d in file %s.\n", lineno, filename);
                     freewordlist(firstword);
                     fclose(fp);
@@ -259,7 +261,7 @@ struct wordlist *parseihexfile(const char *filename)
                 recparsed = 1;  /* Flag record has been parsed */
                 break;
     
-            case IHEX_EXT_SEG_ADDR_RECORD:
+            case RECORDTYPE_IHEX_EXT_SEG_ADDR_RECORD:
 
                 /* Check if the "Extended Segment Address" record is in the first position */
                 if (recparsed) {
@@ -298,7 +300,7 @@ struct wordlist *parseihexfile(const char *filename)
                 }
  
                 /* Check checksum */
-                if ((uint8_t) (bytecount + addrh + addrl + recordtype + extsah + extsal + chksum) != 0) {
+                if ((uint8_t) (bytecount + addrh + addrl + rectype + extsah + extsal + chksum) != 0) {
                     fprintf(stderr, "Checksum error at line %d in file %s.\n", lineno, filename);
                     freewordlist(firstword);
                     fclose(fp);
