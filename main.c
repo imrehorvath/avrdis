@@ -113,10 +113,10 @@ int main(int argc, char **argv)
             wl = parseihexfile(filename);
             break;
         case FILETYPE_UNKNOWN:
-            fprintf(stderr, "Unknown file type for file %s\n", filename), printusage();
+            fprintf(stderr, "Unknown file type %s\n", filename), printusage();
             return 1;
         case FILETYPE_ERROR:
-            fprintf(stderr, "Error occured during determining type of file %s\n", filename);
+            fprintf(stderr, "Error occured during determining file type %s\n", filename);
             return 1;
     }
 
