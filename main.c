@@ -56,11 +56,11 @@ int deterfiletype(char *filename)
     int check;
     char *ext = fileextension(filename);
 
-    /* First try to determine by the extension */
-    if (ext && !strcmpnocase(ext, "hex"))
-        return FILETYPE_IHEX;
+    if (ext) {
+        if (!strcmpnocase(ext, "hex"))
+            return FILETYPE_IHEX;
+    }
 
-    /* Second try to determine by contents */
     if ((check = ihexfile(filename)) == -1)
         return FILETYPE_ERROR;
     if (check)
