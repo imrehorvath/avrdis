@@ -32,6 +32,11 @@ static struct labelstruct *labels = NULL;
 static size_t labelscount = 0;
 static size_t labelssize = 0;
 
+static uint32_t maxrefaddr = 0;
+
+static int addrlimit = 0;
+static uint32_t limitaddr = 0;
+
 static int condrelbranch(uint16_t word, uint32_t wordaddress, const char **mnemonic, uint32_t *targetwordaddr)
 {
     const char *s;
@@ -107,24 +112,12 @@ static int condrelbranch(uint16_t word, uint32_t wordaddress, const char **mnemo
     return 1;
 }
 
-static int relcalljmp(uint16_t word, uint32_t wordaddress, const char **mnemonic, uint32_t *targetwordaddr)
+static int rcall(uint16_t word, uint32_t wordaddress, uint32_t *targetwordaddr)
 {
-    const char *s;
     int16_t offset;
 
-    switch (word & 0xf000) {
-        case 0xd000:
-            s = "rcall";
-            break;
-        case 0xc000:
-            s = "rjmp";
-            break;
-        default:
-            return 0;
-    }
-
-    if (mnemonic)
-        *mnemonic = s;
+    if ((word & 0xf000) != 0xd000)
+        return 0;
 
     if (targetwordaddr) {
 
@@ -140,33 +133,77 @@ static int relcalljmp(uint16_t word, uint32_t wordaddress, const char **mnemonic
     return 1;
 }
 
-static int longcalljmp(struct wordlist *wl, const char **mnemonic, uint32_t *targetwordaddr)
+static int rjmp(uint16_t word, uint32_t wordaddress, uint32_t *targetwordaddr)
 {
-    const char *s;
+    int16_t offset;
 
-    switch (wl->word & 0xfe0e) {
-        case 0x940e:
-            s = "call";
-            break;
-        case 0x940c:
-            s = "jmp";
-            break;
-        default:
-            return 0;
+    if ((word & 0xf000) != 0xc000)
+        return 0;
+
+    if (targetwordaddr) {
+
+        offset = word & 0x0fff;
+        /* In case of negative offset, complete the 16 bit signed representation */
+        if (word & 0x0800)
+            offset |= 0xf000;   /* Two's complement */
+       
+        /* offset means word offset! */
+        *targetwordaddr = wordaddress + offset + 1;
     }
+
+    return 1;
+}
+
+static int call(struct wordlist *wl, uint32_t *targetwordaddr)
+{
+    if ((wl->word & 0xfe0e) != 0x940e)
+        return 0;
 
     if (wl->next == NULL) {
         fprintf(stderr, "2nd word of 32-bit opcode after word address %05x missing\n", wl->wordaddress);
         return 0;
     }
 
-    if (mnemonic)
-        *mnemonic = s;
+    if (targetwordaddr)
+        *targetwordaddr = ((((wl->word & 0x01f0) >> 3) | (wl->word & 0x0001)) << 16) | wl->next->word;
+
+    return 1;
+}
+
+static int jmp(struct wordlist *wl, uint32_t *targetwordaddr)
+{
+    if ((wl->word & 0xfe0e) != 0x940c)
+        return 0;
+
+    if (wl->next == NULL) {
+        fprintf(stderr, "2nd word of 32-bit opcode after word address %05x missing\n", wl->wordaddress);
+        return 0;
+    }
 
     if (targetwordaddr)
         *targetwordaddr = ((((wl->word & 0x01f0) >> 3) | (wl->word & 0x0001)) << 16) | wl->next->word;
 
     return 1;
+}
+
+static int ijmp(uint16_t word)
+{
+    return word == 0x9409;
+}
+
+static int eijmp(uint16_t word)
+{
+    return word == 0x9419;
+}
+
+static int ret(uint16_t word)
+{
+    return word == 0x9508;
+}
+
+static int reti(uint16_t word)
+{
+    return word == 0x9518;
 }
 
 static int adc(uint16_t word, int *d, int *r)
@@ -1088,6 +1125,32 @@ static int xch(uint16_t word, int *d)
     return 1;
 }
 
+static int skipinstr(uint16_t word)
+{
+    return  sbic(word, NULL, NULL) ||
+            sbis(word, NULL, NULL) ||
+            sbrc(word, NULL, NULL) ||
+            sbrs(word, NULL, NULL) ||
+            cpse(word, NULL, NULL);
+}
+
+static int discctrlfowinstr(struct wordlist *wl)
+{
+    return  ret(wl->word) ||
+            reti(wl->word) ||
+            rjmp(wl->word, 0, NULL) ||
+            jmp(wl, NULL) ||
+            ijmp(wl->word) ||
+            eijmp(wl->word);
+}
+
+static int stoplabeladdrcoll(struct wordlist *wl, struct wordlist *prevwl, uint16_t prevprevinstrword)
+{
+    return  discctrlfowinstr(prevwl) &&
+            !skipinstr(prevprevinstrword) &&
+            wl->wordaddress > maxrefaddr;
+}
+
 static void freelabels(void)
 {
     size_t i;
@@ -1138,6 +1201,10 @@ static int addlabeladdr(uint32_t wordaddress)
     /* Add address in the order its found */
     labels[labelscount++].wordaddress = wordaddress;
 
+    /* Keep track of the max. address referred to */
+    if (wordaddress > maxrefaddr)
+        maxrefaddr = wordaddress;
+
     return 1;
 }
 
@@ -1158,25 +1225,52 @@ static int comp(const void *lhs, const void *rhs)
 static int collectlabeladdrs(struct wordlist *wl)
 {
     uint32_t targetwordaddr;
+    uint16_t prevprevinstrword = 0;
+    struct wordlist *prevwl = NULL;
+    int i = 0;
 
     for (; wl; wl = wl->next) {
+
+        if (i >= 2 && stoplabeladdrcoll(wl, prevwl, prevprevinstrword)) {
+            limitaddr = wl->wordaddress;
+            addrlimit = 1;
+            break;
+        }
 
         /* BRCC, BRCS, BREQ, BRGE, BRHC, BRHS, BRID, BRIE, BRLT, BRMI, BRNE, BRPL, BRTC, BRTS, BRVC and BRVS */
         if (condrelbranch(wl->word, wl->wordaddress, NULL, &targetwordaddr)) {
             if (!addlabeladdr(targetwordaddr))
                 return 0;
         }
-        /* RCALL and RJMP */
-        else if (relcalljmp(wl->word, wl->wordaddress, NULL, &targetwordaddr)) {
+        /* RCALL */
+        else if (rcall(wl->word, wl->wordaddress, &targetwordaddr)) {
             if (!addlabeladdr(targetwordaddr))
                 return 0;
         }
-        /* CALL and JMP */
-        else if (longcalljmp(wl, NULL, &targetwordaddr)) {
+        /* RJMP */
+        else if (rjmp(wl->word, wl->wordaddress, &targetwordaddr)) {
+            if (!addlabeladdr(targetwordaddr))
+                return 0;
+        }
+        /* CALL */
+        else if (call(wl, &targetwordaddr)) {
             if (!addlabeladdr(targetwordaddr))
                 return 0;
             wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
         }
+        /* JMP */
+        else if (jmp(wl, &targetwordaddr)) {
+            if (!addlabeladdr(targetwordaddr))
+                return 0;
+            wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
+        }
+
+        if (i > 0)
+            prevprevinstrword = prevwl->word;
+        prevwl = wl;
+
+        if (i < 2)
+            i++;
     }
 
     /* Sort addresses in ascending order, if ther are any */
@@ -1269,8 +1363,9 @@ void emitavrasm(struct wordlist *wl, int listing)
         for (pd = 0; pd < padding-lablen; pd++)
             putc(' ', stdout);
 
-        /* Generate symbolic instructions from opcode */
-        if (adc(wl->word, &d, &r))
+        if (addrlimit && wl->wordaddress >= limitaddr)
+            printf(".dw 0x%04x\n", wl->word);
+        else if (adc(wl->word, &d, &r))
             if (d != r)
                 printf("adc r%d, r%d\n", d, r);
             else
@@ -1297,10 +1392,18 @@ void emitavrasm(struct wordlist *wl, int listing)
             printf("bst r%d, %d\n", r, b);
         else if (condrelbranch(wl->word, wl->wordaddress, &mnemonic, &targetwordaddr))
             printf("%s %s\n", mnemonic, lookuplabel(targetwordaddr));
-        else if (relcalljmp(wl->word, wl->wordaddress, &mnemonic, &targetwordaddr))
-            printf("%s %s\n", mnemonic, lookuplabel(targetwordaddr));
-        else if (longcalljmp(wl, &mnemonic, &targetwordaddr)) {
-            printf("%s %s\n", mnemonic, lookuplabel(targetwordaddr));
+        else if (rcall(wl->word, wl->wordaddress, &targetwordaddr))
+            printf("rcall %s\n", lookuplabel(targetwordaddr));
+        else if (rjmp(wl->word, wl->wordaddress, &targetwordaddr))
+            printf("rjmp %s\n", lookuplabel(targetwordaddr));
+        else if (call(wl, &targetwordaddr)) {
+            printf("call %s\n", lookuplabel(targetwordaddr));
+            wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
+            if (listing)
+                printf("C:%05x %04x\n", wl->wordaddress, wl->word);
+        }
+        else if (jmp(wl, &targetwordaddr)) {
+            printf("jmp %s\n", lookuplabel(targetwordaddr));
             wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
             if (listing)
                 printf("C:%05x %04x\n", wl->wordaddress, wl->word);
@@ -1341,7 +1444,7 @@ void emitavrasm(struct wordlist *wl, int listing)
             printf("des 0x%02x\n", K);
         else if (wl->word == 0x9519)
             printf("eicall\n");
-        else if (wl->word == 0x9419)
+        else if (eijmp(wl->word))
             printf("eijmp\n");
         else if (elpm(wl->word, &d, &operand))
             if (*operand)
@@ -1361,7 +1464,7 @@ void emitavrasm(struct wordlist *wl, int listing)
             printf("fmulsu r%d, r%d\n", d+16, r);
         else if (wl->word == 0x9509)
             printf("icall\n");
-        else if (wl->word == 0x9409)
+        else if (ijmp(wl->word))
             printf("ijmp\n");
         else if (in(wl->word, &d, &A))
             printf("in r%d, 0x%02x\n", d, A);
@@ -1419,9 +1522,9 @@ void emitavrasm(struct wordlist *wl, int listing)
             printf("pop r%d\n", d);
         else if (push(wl->word, &r))
             printf("push r%d\n", r);
-        else if (wl->word == 0x9508)
+        else if (ret(wl->word))
             printf("ret\n");
-        else if (wl->word == 0x9518)
+        else if (reti(wl->word))
             printf("reti\n");
         else if (ror(wl->word, &d))
             printf("ror r%d\n", d);
