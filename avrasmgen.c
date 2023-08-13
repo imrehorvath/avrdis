@@ -20,22 +20,30 @@
 
 #include "avrdis.h"
 
-#define DEFAULT_LABELS_SIZE 64
+#define DEFAULT_LABELS_SIZE 128
 #define PADDING_TAB_SIZE 4
 
-struct labelstruct {
+struct labelrecord {
     uint32_t wordaddress;
     char *label;
 };
 
-static struct labelstruct *labels = NULL;
-static size_t labelscount = 0;
-static size_t labelssize = 0;
+struct labelstruct {
+    struct labelrecord *labels;
+    size_t labelscount;
+    size_t labelssize;
+};
 
-static uint32_t maxrefaddr = 0;
+struct range {
+    struct range *next;
+    uint32_t begin;
+    uint32_t end;
+};
 
-static int addrlimit = 0;
-static uint32_t limitaddr = 0;
+struct rangestruct {
+    struct range *first;
+    struct range *last;
+};
 
 static int condrelbranch(uint16_t word, uint32_t wordaddress, const char **mnemonic, uint32_t *targetwordaddr)
 {
@@ -633,7 +641,7 @@ static int ldi(uint16_t word, int *d, int *K)
     return 1;
 }
 
-static int lds(struct wordlist *wl, int *skip, int *d, int *k)
+static int lds(struct wordlist *wl, int *thirtytwobit, int *d, int *k)
 {
     if ((wl->word & 0xfe0f) == 0x9000) {
 
@@ -642,8 +650,8 @@ static int lds(struct wordlist *wl, int *skip, int *d, int *k)
             return 0;
         }
 
-        if (skip)
-            *skip = 1; /* 32-bit opcode, need to skip next word */
+        if (thirtytwobit)
+            *thirtytwobit = 1; /* 32-bit opcode, need to skip next word */
 
         if (d)
             *d = (wl->word & 0x01f0) >> 4;
@@ -656,8 +664,8 @@ static int lds(struct wordlist *wl, int *skip, int *d, int *k)
 
     if ((wl->word & 0xf800) == 0xa000) {
 
-        if (skip)
-            *skip = 0; /* 16-bit opcode, no need to skip next word */
+        if (thirtytwobit)
+            *thirtytwobit = 0; /* 16-bit opcode, no need to skip next word */
 
         if (d)
             *d = (wl->word & 0x00f0) >> 4;
@@ -1037,7 +1045,7 @@ static int st(uint16_t word, const char **operand, int *q, int *r)
     return 1;
 }
 
-static int sts(struct wordlist *wl, int *skip, int *k, int *r)
+static int sts(struct wordlist *wl, int *thirtytwobit, int *k, int *r)
 {
     if ((wl->word & 0xfe0f) == 0x9200) {
 
@@ -1046,8 +1054,8 @@ static int sts(struct wordlist *wl, int *skip, int *k, int *r)
             return 0;
         }
 
-        if (skip)
-            *skip = 1; /* 32-bit opcode, need to skip next word */
+        if (thirtytwobit)
+            *thirtytwobit = 1; /* 32-bit opcode, need to skip next word */
 
         if (k)
             *k = wl->next->word;
@@ -1060,8 +1068,8 @@ static int sts(struct wordlist *wl, int *skip, int *k, int *r)
 
     if ((wl->word & 0xf800) == 0xa800) {
 
-        if (skip)
-            *skip = 0; /* 16-bit opcode, no need to skip next word */
+        if (thirtytwobit)
+            *thirtytwobit = 0; /* 16-bit opcode, no need to skip next word */
 
         if (k)
             *k = ((wl->word & 0x0700) >> 4) | (wl->word & 0x000f);
@@ -1134,84 +1142,266 @@ static int skipinstr(uint16_t word)
             cpse(word, NULL, NULL);
 }
 
-static int discctrlfowinstr(struct wordlist *wl)
+static struct rangestruct *allocranges()
 {
-    return  ret(wl->word) ||
-            reti(wl->word) ||
-            rjmp(wl->word, 0, NULL) ||
-            jmp(wl, NULL) ||
-            ijmp(wl->word) ||
-            eijmp(wl->word);
+    struct rangestruct *rs = malloc(sizeof(struct rangestruct));
+
+    if (rs)
+        memset(rs, 0, sizeof(struct rangestruct));
+    return rs;
 }
 
-static int stoplabeladdrcoll(struct wordlist *wl, struct wordlist *prevwl, uint16_t prevprevinstrword)
+static void freeranges(struct rangestruct *rs)
 {
-    return  discctrlfowinstr(prevwl) &&
-            !skipinstr(prevprevinstrword) &&
-            wl->wordaddress > maxrefaddr;
+    struct range *r, *temp;
+
+    for (r = rs->first; r;) {
+        temp = r;
+        r = r->next;
+        free(temp);
+    }
+    free(rs);
 }
 
-static void freelabels(void)
+static struct labelstruct *alloclabels(void)
+{
+    struct labelstruct *ls = malloc(sizeof(struct labelstruct));
+
+    if (ls) {
+        memset(ls, 0, sizeof(struct labelstruct));
+
+        ls->labels = calloc(DEFAULT_LABELS_SIZE, sizeof(struct labelrecord));
+        if (!ls->labels) {
+            free(ls);
+            return NULL;
+        }
+        ls->labelscount = 0;
+        ls->labelssize = DEFAULT_LABELS_SIZE;
+    }
+    return ls;
+}
+
+static void freelabels(struct labelstruct *ls)
 {
     size_t i;
     char *label;
 
-    if (labels) {
-        for (i = 0; i < labelscount; i++)
-            if ((label = labels[i].label))
+    if (ls->labels) {
+        for (i = 0; i < ls->labelscount; i++)
+            if ((label = ls->labels[i].label))
                 free(label);
-        free(labels);
+        free(ls->labels);
     }
-
-    labels = NULL;
-    labelscount = labelssize = 0;
+    free(ls);
 }
 
-static int addlabeladdr(uint32_t wordaddress)
+static int addrinlist(struct labelstruct *ls, uint32_t wordaddress)
 {
-    struct labelstruct *newlabels;
-    size_t i;
+    int i;
 
-    /* Initial allocation */
-    if (!labelssize) {
-        labels = calloc(DEFAULT_LABELS_SIZE, sizeof(struct labelstruct));
-        if (!labels) {
-            fprintf(stderr, "Error allocating memory.\n");
-            return 0;
-        }
-        labelscount = 0;
-        labelssize = DEFAULT_LABELS_SIZE;
+    for (i = 0; i < ls->labelscount; i++)
+        if (ls->labels[i].wordaddress == wordaddress)
+            return 1;
+    return 0;
+}
+
+static int addlabeladdr(struct labelstruct *ls, uint32_t wordaddress)
+{
+    struct labelrecord *newlabels;
+
+    /* Skip already added addresses */
+    if (addrinlist(ls, wordaddress))
+        return 1;
 
     /* Reallocate when limit reached, increase capacity by DEFAULT_LABELS_SIZE */
-    } else if (labelscount >= labelssize) {
-        newlabels = realloc(labels, (labelssize + DEFAULT_LABELS_SIZE) * sizeof(struct labelstruct));
+    if (ls->labelscount >= ls->labelssize) {
+        newlabels = realloc(ls->labels, (ls->labelssize + DEFAULT_LABELS_SIZE) * sizeof(struct labelrecord));
         if (!newlabels) {
             fprintf(stderr, "Error allocating memory.\n");
             return 0;
         }
-        labels = newlabels;
-        labelssize += DEFAULT_LABELS_SIZE;
+        ls->labels = newlabels;
+        ls->labelssize += DEFAULT_LABELS_SIZE;
     }
 
-    /* Skip already added addresses, not yet sorted at this point, so perform linear search */
-    for (i = 0; i < labelscount; i++)
-        if (labels[i].wordaddress == wordaddress)
-            return 1;
-
     /* Add address in the order its found */
-    labels[labelscount++].wordaddress = wordaddress;
-
-    /* Keep track of the max. address referred to */
-    if (wordaddress > maxrefaddr)
-        maxrefaddr = wordaddress;
+    ls->labels[ls->labelscount++].wordaddress = wordaddress;
 
     return 1;
 }
 
-static int comp(const void *lhs, const void *rhs)
+static int addrange(struct rangestruct *rs, uint32_t begin, uint32_t end)
 {
-    const struct labelstruct *l = lhs;
-    const struct labelstruct *r = rhs;
+    struct range *r = malloc(sizeof(struct range));
+
+    if (!r)
+        return 0;
+    memset(r, 0, sizeof(struct range));
+    r->begin = begin;
+    r->end = end;
+
+    if (!rs->first)
+        rs->first = r;
+    else
+        rs->last->next = r;
+    rs->last = r;
+    return 1;
+}
+
+static struct range *inrangesprev(struct rangestruct *rs, uint32_t wordaddress, struct range **prev)
+{
+    struct range *r, *pr = NULL;
+
+    for (r = rs->first; r; r = r->next) {
+        if (r->begin <= wordaddress && wordaddress <= r->end) {
+            if (prev)
+                *prev = pr;
+            return r;
+        }
+        pr = r;
+    }
+    return NULL;
+}
+
+static struct range *inranges(struct rangestruct *rs, uint32_t wordaddress)
+{
+    return inrangesprev(rs, wordaddress, NULL);
+}
+
+static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to, struct labelstruct *ls, struct rangestruct *rs);
+
+static void slicerange(struct wordlist *wl, struct labelstruct *ls, struct rangestruct *rs, uint32_t wordaddress)
+{
+    struct range *r, *prev;
+    uint32_t to;
+
+    if ((r = inrangesprev(rs, wordaddress, &prev))) {
+        to = r->end;
+        r->end = wordaddress - 1;
+        if (r->begin > r->end) {
+            if (!prev)
+                rs->first = r->next;
+            else
+                prev->next = r->next;
+            if (rs->last == r) {
+                if (prev)
+                    rs->last = prev;
+                else
+                    rs->last = NULL;
+            }
+            free(r);
+        }
+        collectlabelsbetween(wl, wordaddress, to, ls, rs);
+    }
+}
+
+static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to, struct labelstruct *ls, struct rangestruct *rs)
+{
+    struct wordlist *words, *temp, *prev;
+    uint32_t begin;
+    uint32_t targetwordaddr;
+    int i = 0, skip = 0;
+
+    for (words = wl; words && words->wordaddress < from; words = words->next);
+
+    for (; words && words->wordaddress <= to; words = words->next) {
+
+        temp = words;
+
+        if (skip && addrinlist(ls, words->wordaddress)) {
+            if (begin <= prev->wordaddress)
+                if (!addrange(rs, begin, prev->wordaddress))
+                    return 0;
+            skip = 0;
+        }
+
+        if (!skip) {
+            if (condrelbranch(words->word, words->wordaddress, NULL, &targetwordaddr) ||
+                rcall(words->word, words->wordaddress, &targetwordaddr)) {
+                if (!addlabeladdr(ls, targetwordaddr))
+                    return 0;
+                slicerange(wl, ls, rs, targetwordaddr);
+            }
+            else if (call(words, &targetwordaddr)) {
+                if (!addlabeladdr(ls, targetwordaddr))
+                    return 0;
+                slicerange(wl, ls, rs, targetwordaddr);
+                words = words->next; /* 32-bit opcode */
+            }
+            else if (jmp(words, &targetwordaddr)) {
+                if (!addlabeladdr(ls, targetwordaddr))
+                    return 0;
+                slicerange(wl, ls, rs, targetwordaddr);
+                words = words->next; /* 32-bit opcode */
+
+                if (i > 0 /*&& words->wordaddress > 0x33*/ && !skipinstr(prev->word)) {
+                    if (!words->next)
+                        break;
+                    begin = words->next->wordaddress;
+                    skip = 1;
+                }
+            }
+            else if (rjmp(words->word, words->wordaddress, &targetwordaddr)) {
+                if (!addlabeladdr(ls, targetwordaddr))
+                    return 0;
+                slicerange(wl, ls, rs, targetwordaddr);
+
+                if (i > 0 /*&& words->wordaddress > 0x33*/ && !skipinstr(prev->word)) {
+                    if (!words->next)
+                        break;
+                    begin = words->next->wordaddress;
+                    skip = 1;
+                }
+            }
+            else if (ret(words->word) || reti(words->word) ||
+                    ijmp(words->word) || eijmp(words->word)) {
+
+                if (i > 0 /*&& words->wordaddress > 0x33*/ && !skipinstr(prev->word)) {
+                    if (!words->next)
+                        break;
+                    begin = words->next->wordaddress;
+                    skip = 1;
+                }
+            }
+        }
+
+        prev = temp;
+        if (i < 1)
+            i++;
+    }
+
+    if (skip && begin <= prev->wordaddress)
+        if (!addrange(rs, begin, prev->wordaddress))
+            return 0;
+
+    return 1;
+}
+
+static int genlabels(struct labelstruct *ls)
+{
+    size_t i;
+    int sz;
+    char *buf, *fmt = "L%zu";
+
+    for (i = 0; i < ls->labelscount; i++) {
+        sz = snprintf(NULL, 0, fmt, i);
+        buf = malloc(sz+1);
+        if (!buf) {
+            fprintf(stderr, "Error allocating memory.\n");
+            return 0;
+        }
+        snprintf(buf, sz+1, fmt, i);
+
+        ls->labels[i].label = buf;
+    }
+
+    return 1;
+}
+
+static int labelreccmp(const void *lhs, const void *rhs)
+{
+    const struct labelrecord *l = lhs;
+    const struct labelrecord *r = rhs;
 
     if (l->wordaddress < r->wordaddress)
         return -1;
@@ -1222,122 +1412,82 @@ static int comp(const void *lhs, const void *rhs)
     return 0;
 }
 
-static int collectlabeladdrs(struct wordlist *wl)
+static int collectlabels(struct wordlist *wl, struct labelstruct *ls, struct rangestruct *rs)
 {
-    uint32_t targetwordaddr;
-    uint16_t prevprevinstrword = 0;
-    struct wordlist *prevwl = NULL;
-    int i = 0;
+    struct wordlist *words;
+    uint32_t from, to;
 
-    for (; wl; wl = wl->next) {
+    if (!wl)
+        return 1;
 
-        if (i >= 2 && stoplabeladdrcoll(wl, prevwl, prevprevinstrword)) {
-            limitaddr = wl->wordaddress;
-            addrlimit = 1;
-            break;
-        }
+    words = wl;
+    from = words->wordaddress;
+    while (words->next)
+        words = words->next;
+    to = words->wordaddress;
 
-        /* BRCC, BRCS, BREQ, BRGE, BRHC, BRHS, BRID, BRIE, BRLT, BRMI, BRNE, BRPL, BRTC, BRTS, BRVC and BRVS */
-        if (condrelbranch(wl->word, wl->wordaddress, NULL, &targetwordaddr)) {
-            if (!addlabeladdr(targetwordaddr))
-                return 0;
-        }
-        /* RCALL */
-        else if (rcall(wl->word, wl->wordaddress, &targetwordaddr)) {
-            if (!addlabeladdr(targetwordaddr))
-                return 0;
-        }
-        /* RJMP */
-        else if (rjmp(wl->word, wl->wordaddress, &targetwordaddr)) {
-            if (!addlabeladdr(targetwordaddr))
-                return 0;
-        }
-        /* CALL */
-        else if (call(wl, &targetwordaddr)) {
-            if (!addlabeladdr(targetwordaddr))
-                return 0;
-            wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
-        }
-        /* JMP */
-        else if (jmp(wl, &targetwordaddr)) {
-            if (!addlabeladdr(targetwordaddr))
-                return 0;
-            wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
-        }
+    if (!collectlabelsbetween(wl, from, to, ls, rs))
+        return 0;
 
-        if (i > 0)
-            prevprevinstrword = prevwl->word;
-        prevwl = wl;
+    if (ls->labels)
+        qsort(ls->labels, ls->labelscount, sizeof(struct labelrecord), labelreccmp);
 
-        if (i < 2)
-            i++;
-    }
-
-    /* Sort addresses in ascending order, if ther are any */
-    if (labels)
-        qsort(labels, labelscount, sizeof(struct labelstruct), comp);
-
-    return 1;
+    return genlabels(ls);
 }
 
-static int genlabels(void)
+static const char *lookuplabel(struct labelstruct *ls, uint32_t wordaddress)
 {
-    size_t i;
-    int sz;
-    char *buf, *fmt = "L%zu";
+    struct labelrecord key = { .wordaddress = wordaddress };
+    struct labelrecord *elem;
 
-    for (i = 0; i < labelscount; i++) {
-        sz = snprintf(NULL, 0, fmt, i);
-        buf = malloc(sz+1);
-        if (!buf) {
-            fprintf(stderr, "Error allocating memory.\n");
-            return 0;
-        }
-        snprintf(buf, sz+1, fmt, i);
-
-        labels[i].label = buf;
-    }
-
-    return 1;
-}
-
-static const char *lookuplabel(uint32_t wordaddress)
-{
-    struct labelstruct key = { .wordaddress = wordaddress };
-    struct labelstruct *elem;
-
-    if (!labels)
+    if (!ls->labels)
         return NULL;
 
     /* Binary search on sorted array */
-    elem = bsearch(&key, labels, labelscount, sizeof(struct labelstruct), comp);
+    elem = bsearch(&key, ls->labels, ls->labelscount, sizeof(struct labelrecord), labelreccmp);
     if (elem)
         return elem->label;
 
     return NULL;
 }
 
+void printranges(FILE *fp, struct rangestruct *rs)
+{
+    struct range *r;
+
+    for (r = rs->first; r; r = r->next)
+        fprintf(fp, "0x%04x:0x%04x\n", r->begin, r->end);
+}
+
 void emitavrasm(struct wordlist *wl, int listing)
 {
     const char *label, *mnemonic, *operand;
     int d, r, b, k, K, A, q;
-    int skip;
+    int thirtytwobit, inrng = 0;
     uint32_t targetwordaddr;
     uint32_t lastwordaddr = 0;
     size_t padding = 0, pd, lablen;
+    struct labelstruct *ls;
+    struct rangestruct *rs;
+    struct range *rng;
 
-    if (!collectlabeladdrs(wl)) {
-        freelabels();   /* Free the internally used, already allocated memory on failure */
+    if ((ls = alloclabels()) == NULL) {
+        fprintf(stderr, "Error allocating memory\n");
         return;
     }
 
-    if (!genlabels()) {
-        freelabels();   /* Free the internally used, already allocated memory on failure */
+    if ((rs = allocranges()) == NULL) {
+        fprintf(stderr, "Error allocating memory\n");
         return;
     }
 
-    if (labelscount)
-        padding = ((strlen(labels[labelscount-1].label)+1)/PADDING_TAB_SIZE+1)*PADDING_TAB_SIZE;
+    if (!collectlabels(wl, ls, rs))
+        return;
+
+    printranges(stderr, rs);
+
+    if (ls->labelscount)
+        padding = ((strlen(ls->labels[ls->labelscount-1].label)+1)/PADDING_TAB_SIZE+1)*PADDING_TAB_SIZE;
 
     /* Main disassembly loop */
     for (; wl; wl = wl->next) {
@@ -1354,7 +1504,7 @@ void emitavrasm(struct wordlist *wl, int listing)
             printf("C:%05x %04x ", wl->wordaddress, wl->word);
 
         /* If there is a label for this address, then print the label */
-        if ((label = lookuplabel(wl->wordaddress)))
+        if ((label = lookuplabel(ls, wl->wordaddress)))
             printf("%s:", label), lablen = strlen(label)+1;
         else
             lablen = 0;
@@ -1363,7 +1513,15 @@ void emitavrasm(struct wordlist *wl, int listing)
         for (pd = 0; pd < padding-lablen; pd++)
             putc(' ', stdout);
 
-        if (addrlimit && wl->wordaddress >= limitaddr)
+        if (!inrng) {
+            rng = inranges(rs, wl->wordaddress);
+            if (rng)
+                inrng = 1;
+        } else if (rng->end < wl->wordaddress) {
+            inrng = 0;
+        }
+
+        if (inrng)
             printf(".dw 0x%04x\n", wl->word);
         else if (adc(wl->word, &d, &r))
             if (d != r)
@@ -1391,20 +1549,20 @@ void emitavrasm(struct wordlist *wl, int listing)
         else if (bst(wl->word, &r, &b))
             printf("bst r%d, %d\n", r, b);
         else if (condrelbranch(wl->word, wl->wordaddress, &mnemonic, &targetwordaddr))
-            printf("%s %s\n", mnemonic, lookuplabel(targetwordaddr));
+            printf("%s %s\n", mnemonic, lookuplabel(ls, targetwordaddr));
         else if (rcall(wl->word, wl->wordaddress, &targetwordaddr))
-            printf("rcall %s\n", lookuplabel(targetwordaddr));
+            printf("rcall %s\n", lookuplabel(ls, targetwordaddr));
         else if (rjmp(wl->word, wl->wordaddress, &targetwordaddr))
-            printf("rjmp %s\n", lookuplabel(targetwordaddr));
+            printf("rjmp %s\n", lookuplabel(ls, targetwordaddr));
         else if (call(wl, &targetwordaddr)) {
-            printf("call %s\n", lookuplabel(targetwordaddr));
-            wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
+            printf("call %s\n", lookuplabel(ls, targetwordaddr));
+            wl = wl->next; /* 32-bit opcode */
             if (listing)
                 printf("C:%05x %04x\n", wl->wordaddress, wl->word);
         }
         else if (jmp(wl, &targetwordaddr)) {
-            printf("jmp %s\n", lookuplabel(targetwordaddr));
-            wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
+            printf("jmp %s\n", lookuplabel(ls, targetwordaddr));
+            wl = wl->next; /* 32-bit opcode */
             if (listing)
                 printf("C:%05x %04x\n", wl->wordaddress, wl->word);
         }
@@ -1483,10 +1641,10 @@ void emitavrasm(struct wordlist *wl, int listing)
                 printf("ld r%d, %s\n", d, operand);
         else if (ldi(wl->word, &d, &K))
             printf("ldi r%d, %d\n", d+16, K);
-        else if (lds(wl, &skip, &d, &k)) {
+        else if (lds(wl, &thirtytwobit, &d, &k)) {
             printf("lds r%d, 0x%02x\n", d, k);
-            if (skip) {
-                wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
+            if (thirtytwobit) {
+                wl = wl->next; /* 32-bit opcode */
                 if (listing)
                     printf("C:%05x %04x\n", wl->wordaddress, wl->word);
             }
@@ -1569,10 +1727,10 @@ void emitavrasm(struct wordlist *wl, int listing)
                 printf("std %s+%d, r%d\n", operand, q, r);
             else
                 printf("st %s, r%d\n", operand, r);
-        else if (sts(wl, &skip, &k, &r)) {
+        else if (sts(wl, &thirtytwobit, &k, &r)) {
             printf("sts 0x%02x, r%d\n", k, r);
-            if (skip) {
-                wl = wl->next; /* Skip 2nd word of the 32-bit opcode */
+            if (thirtytwobit) {
+                wl = wl->next; /* 32-bit opcode */
                 if (listing)
                     printf("C:%05x %04x\n", wl->wordaddress, wl->word);
             }
@@ -1588,12 +1746,12 @@ void emitavrasm(struct wordlist *wl, int listing)
         else if (xch(wl->word, &d))
             printf("xch Z, r%d\n", d);
         else
-            printf(".dw 0x%04x\n", wl->word);
+            printf(".dw 0x%04x\n", wl->word); /* Unknown */
 
         /* Save last address for discontinuity check */
         lastwordaddr = wl->wordaddress;
     }   /* Main disassembly loop */
 
-    /* Free the internally used allocated memory after completion */
-    freelabels();
+    freeranges(rs);
+    freelabels(ls);
 }
