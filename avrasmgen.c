@@ -1334,7 +1334,7 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
                 slicerange(wl, ls, rs, targetwordaddr);
                 words = words->next; /* 32-bit opcode */
 
-                if (i > 0 /*&& words->wordaddress > 0x33*/ && !skipinstr(prev->word)) {
+                if (i > 0 && !skipinstr(prev->word)) {
                     if (!words->next)
                         break;
                     begin = words->next->wordaddress;
@@ -1346,7 +1346,7 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
                     return 0;
                 slicerange(wl, ls, rs, targetwordaddr);
 
-                if (i > 0 /*&& words->wordaddress > 0x33*/ && !skipinstr(prev->word)) {
+                if (i > 0 && !skipinstr(prev->word)) {
                     if (!words->next)
                         break;
                     begin = words->next->wordaddress;
@@ -1356,7 +1356,7 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
             else if (ret(words->word) || reti(words->word) ||
                     ijmp(words->word) || eijmp(words->word)) {
 
-                if (i > 0 /*&& words->wordaddress > 0x33*/ && !skipinstr(prev->word)) {
+                if (i > 0 && !skipinstr(prev->word)) {
                     if (!words->next)
                         break;
                     begin = words->next->wordaddress;
