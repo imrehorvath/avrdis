@@ -32,4 +32,6 @@ Currently supported inputfile types are: IHEX
 Options:
   -h : Show this usage info and exit.
   -l : List word addresses and raw instructions with the disassembled code.
+  -e nnnn:nnnn : Enable disassembly of otherwise disabled region. Multiple options are possible.
+                 Use hex numbers. For reference, see listing of disabled regions to stderr.
 ```

@@ -11,7 +11,9 @@
  * 
  *****************************************************************************/
 
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ctype.h>
 
 #include "avrdis.h"
@@ -25,6 +27,53 @@ void freewordlist(struct wordlist *wl)
         wl = wl->next;
         free(temp);
     }
+}
+
+struct regionstruct *allocregions(void)
+{
+    struct regionstruct *rs = malloc(sizeof(struct regionstruct));
+
+    if (rs)
+        memset(rs, 0, sizeof(struct regionstruct));
+    return rs;
+}
+
+void freeregions(struct regionstruct *rs)
+{
+    struct region *r, *temp;
+
+    for (r = rs->first; r;) {
+        temp = r;
+        r = r->next;
+        free(temp);
+    }
+    free(rs);
+}
+
+void printregions(FILE *fp, struct regionstruct *rs)
+{
+    struct region *r;
+
+    for (r = rs->first; r; r = r->next)
+        fprintf(fp, "0x%04x:0x%04x\n", r->begin, r->end);
+}
+
+int addregion(struct regionstruct *rs, uint32_t begin, uint32_t end)
+{
+    struct region *r = malloc(sizeof(struct region));
+
+    if (!r)
+        return 0;
+    memset(r, 0, sizeof(struct region));
+    r->begin = begin;
+    r->end = end;
+
+    if (!rs->first)
+        rs->first = r;
+    else
+        rs->last->next = r;
+    rs->last = r;
+    return 1;
 }
 
 int strcmpnocase(const char *lhs, const char *rhs)

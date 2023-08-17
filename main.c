@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "avrdis.h"
 
@@ -78,6 +79,8 @@ void printusage(void)
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -h : Show this usage info and exit.\n");
     fprintf(stderr, "  -l : List word addresses and raw instructions with the disassembled code.\n");
+    fprintf(stderr, "  -e nnnn:nnnn : Enable disassembly of otherwise disabled region. Multiple options are possible.\n");
+    fprintf(stderr, "                 Use hex numbers. For reference, see listing of disabled regions to stderr.\n");
 }
 
 int main(int argc, char **argv)
@@ -85,11 +88,17 @@ int main(int argc, char **argv)
     int i, listing = 0;
     char *filename = NULL;
     struct wordlist *wl;
+    struct regionstruct *enaregs;
+    uint32_t begin, end;
 
     command = cmdname(argv[0]);
 
-    if (argc < 2 || argc > 3)
+    if (argc < 2)
         printusage(), exit(1);
+
+    enaregs = allocregions();
+    if (!enaregs)
+        fprintf(stderr, "Error allocating memory\n"), exit(1);
 
     for (i = 1; i < argc; i++)
         if (*argv[i] == '-')
@@ -97,7 +106,17 @@ int main(int argc, char **argv)
                 listing = 1;
             else if (!strcmp(argv[i], "-h"))
                 printusage(), exit(0);
-            else
+            else if (!strcmp(argv[i], "-e")) {
+                if (i+1 >= argc)
+                    fprintf(stderr, "Address after option -e missing.\n"), printusage(), exit(1);
+                i++;
+                if (sscanf(argv[i], "%x:%x", &begin, &end) != 2)
+                    fprintf(stderr, "Option -e : Failed to parse a hex memory address range.\n"), printusage(), exit(1);
+                if (begin > end)
+                    fprintf(stderr, "Option -e : Starting address must be smaller or equal than end address.\n"), printusage(), exit(1);
+                if (!addregion(enaregs, begin, end))
+                    fprintf(stderr, "Error allocating memory\n"), exit(1);
+            } else
                 fprintf(stderr, "Invalid option %s\n", argv[i]), printusage(), exit(1);
         else
             if (filename)
@@ -120,8 +139,9 @@ int main(int argc, char **argv)
             return 1;
     }
 
-    emitavrasm(wl, listing);
+    emitavrasm(wl, enaregs, listing);
     freewordlist(wl);
+    freeregions(enaregs);
 
     return 0;
 }

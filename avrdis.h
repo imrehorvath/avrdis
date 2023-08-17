@@ -23,12 +23,28 @@ struct wordlist {
     uint16_t word;
 };
 
+struct region {
+    struct region *next;
+    uint32_t begin;
+    uint32_t end;
+};
+
+struct regionstruct {
+    struct region *first;
+    struct region *last;
+};
+
 void freewordlist(struct wordlist *wl);
+
+struct regionstruct *allocregions(void);
+void freeregions(struct regionstruct *rs);
+int addregion(struct regionstruct *rs, uint32_t begin, uint32_t end);
+void printregions(FILE *fp, struct regionstruct *rs);
 
 int ihexfile(const char *filename);
 struct wordlist *parseihexfile(const char *filename);
 
-void emitavrasm(struct wordlist *wl, int listing);
+void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing);
 
 int strcmpnocase(const char *lhs, const char *rhs);
 

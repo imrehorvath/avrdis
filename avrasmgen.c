@@ -34,17 +34,6 @@ struct labelstruct {
     size_t labelssize;
 };
 
-struct range {
-    struct range *next;
-    uint32_t begin;
-    uint32_t end;
-};
-
-struct rangestruct {
-    struct range *first;
-    struct range *last;
-};
-
 static int condrelbranch(uint16_t word, uint32_t wordaddress, const char **mnemonic, uint32_t *targetwordaddr)
 {
     const char *s;
@@ -1142,27 +1131,6 @@ static int skipinstr(uint16_t word)
             cpse(word, NULL, NULL);
 }
 
-static struct rangestruct *allocranges()
-{
-    struct rangestruct *rs = malloc(sizeof(struct rangestruct));
-
-    if (rs)
-        memset(rs, 0, sizeof(struct rangestruct));
-    return rs;
-}
-
-static void freeranges(struct rangestruct *rs)
-{
-    struct range *r, *temp;
-
-    for (r = rs->first; r;) {
-        temp = r;
-        r = r->next;
-        free(temp);
-    }
-    free(rs);
-}
-
 static struct labelstruct *alloclabels(void)
 {
     struct labelstruct *ls = malloc(sizeof(struct labelstruct));
@@ -1230,27 +1198,9 @@ static int addlabeladdr(struct labelstruct *ls, uint32_t wordaddress)
     return 1;
 }
 
-static int addrange(struct rangestruct *rs, uint32_t begin, uint32_t end)
+static struct region *inregionsprev(struct regionstruct *rs, uint32_t wordaddress, struct region **prev)
 {
-    struct range *r = malloc(sizeof(struct range));
-
-    if (!r)
-        return 0;
-    memset(r, 0, sizeof(struct range));
-    r->begin = begin;
-    r->end = end;
-
-    if (!rs->first)
-        rs->first = r;
-    else
-        rs->last->next = r;
-    rs->last = r;
-    return 1;
-}
-
-static struct range *inrangesprev(struct rangestruct *rs, uint32_t wordaddress, struct range **prev)
-{
-    struct range *r, *pr = NULL;
+    struct region *r, *pr = NULL;
 
     for (r = rs->first; r; r = r->next) {
         if (r->begin <= wordaddress && wordaddress <= r->end) {
@@ -1263,39 +1213,39 @@ static struct range *inrangesprev(struct rangestruct *rs, uint32_t wordaddress, 
     return NULL;
 }
 
-static struct range *inranges(struct rangestruct *rs, uint32_t wordaddress)
+static struct region *inregions(struct regionstruct *rs, uint32_t wordaddress)
 {
-    return inrangesprev(rs, wordaddress, NULL);
+    return inregionsprev(rs, wordaddress, NULL);
 }
 
-static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to, struct labelstruct *ls, struct rangestruct *rs);
+static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to, struct labelstruct *ls, struct regionstruct *enaregs, struct regionstruct *disregs);
 
-static void slicerange(struct wordlist *wl, struct labelstruct *ls, struct rangestruct *rs, uint32_t wordaddress)
+static void sliceregionandcollect(struct wordlist *wl, struct labelstruct *ls, struct regionstruct *enaregs, struct regionstruct *disregs, uint32_t wordaddress)
 {
-    struct range *r, *prev;
+    struct region *r, *prev;
     uint32_t to;
 
-    if ((r = inrangesprev(rs, wordaddress, &prev))) {
+    if ((r = inregionsprev(disregs, wordaddress, &prev))) {
         to = r->end;
         r->end = wordaddress - 1;
         if (r->begin > r->end) {
             if (!prev)
-                rs->first = r->next;
+                disregs->first = r->next;
             else
                 prev->next = r->next;
-            if (rs->last == r) {
+            if (disregs->last == r) {
                 if (prev)
-                    rs->last = prev;
+                    disregs->last = prev;
                 else
-                    rs->last = NULL;
+                    disregs->last = NULL;
             }
             free(r);
         }
-        collectlabelsbetween(wl, wordaddress, to, ls, rs);
+        collectlabelsbetween(wl, wordaddress, to, ls, enaregs, disregs);
     }
 }
 
-static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to, struct labelstruct *ls, struct rangestruct *rs)
+static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to, struct labelstruct *ls, struct regionstruct *enaregs, struct regionstruct *disregs)
 {
     struct wordlist *words, *temp, *prev;
     uint32_t begin;
@@ -1310,7 +1260,7 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
 
         if (skip && addrinlist(ls, words->wordaddress)) {
             if (begin <= prev->wordaddress)
-                if (!addrange(rs, begin, prev->wordaddress))
+                if (!addregion(disregs, begin, prev->wordaddress))
                     return 0;
             skip = 0;
         }
@@ -1320,37 +1270,41 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
                 rcall(words->word, words->wordaddress, &targetwordaddr)) {
                 if (!addlabeladdr(ls, targetwordaddr))
                     return 0;
-                slicerange(wl, ls, rs, targetwordaddr);
+                sliceregionandcollect(wl, ls, enaregs, disregs, targetwordaddr);
             }
             else if (call(words, &targetwordaddr)) {
                 if (!addlabeladdr(ls, targetwordaddr))
                     return 0;
-                slicerange(wl, ls, rs, targetwordaddr);
+                sliceregionandcollect(wl, ls, enaregs, disregs, targetwordaddr);
                 words = words->next; /* 32-bit opcode */
             }
             else if (jmp(words, &targetwordaddr)) {
                 if (!addlabeladdr(ls, targetwordaddr))
                     return 0;
-                slicerange(wl, ls, rs, targetwordaddr);
+                sliceregionandcollect(wl, ls, enaregs, disregs, targetwordaddr);
                 words = words->next; /* 32-bit opcode */
 
                 if (i > 0 && !skipinstr(prev->word)) {
                     if (!words->next)
                         break;
-                    begin = words->next->wordaddress;
-                    skip = 1;
+                    if (!inregions(enaregs, words->next->wordaddress)) {
+                        begin = words->next->wordaddress;
+                        skip = 1;
+                    }
                 }
             }
             else if (rjmp(words->word, words->wordaddress, &targetwordaddr)) {
                 if (!addlabeladdr(ls, targetwordaddr))
                     return 0;
-                slicerange(wl, ls, rs, targetwordaddr);
+                sliceregionandcollect(wl, ls, enaregs, disregs, targetwordaddr);
 
                 if (i > 0 && !skipinstr(prev->word)) {
                     if (!words->next)
                         break;
-                    begin = words->next->wordaddress;
-                    skip = 1;
+                    if (!inregions(enaregs, words->next->wordaddress)) {
+                        begin = words->next->wordaddress;
+                        skip = 1;
+                    }
                 }
             }
             else if (ret(words->word) || reti(words->word) ||
@@ -1359,8 +1313,10 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
                 if (i > 0 && !skipinstr(prev->word)) {
                     if (!words->next)
                         break;
-                    begin = words->next->wordaddress;
-                    skip = 1;
+                    if (!inregions(enaregs, words->next->wordaddress)) {
+                        begin = words->next->wordaddress;
+                        skip = 1;
+                    }
                 }
             }
         }
@@ -1368,10 +1324,10 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
         prev = temp;
         if (i < 1)
             i++;
-    }
+    }   /* Collect for loop */
 
     if (skip && begin <= prev->wordaddress)
-        if (!addrange(rs, begin, prev->wordaddress))
+        if (!addregion(disregs, begin, prev->wordaddress))
             return 0;
 
     return 1;
@@ -1412,7 +1368,7 @@ static int labelreccmp(const void *lhs, const void *rhs)
     return 0;
 }
 
-static int collectlabels(struct wordlist *wl, struct labelstruct *ls, struct rangestruct *rs)
+static int collectlabels(struct wordlist *wl, struct labelstruct *ls, struct regionstruct *enaregs, struct regionstruct *disregs)
 {
     struct wordlist *words;
     uint32_t from, to;
@@ -1426,7 +1382,7 @@ static int collectlabels(struct wordlist *wl, struct labelstruct *ls, struct ran
         words = words->next;
     to = words->wordaddress;
 
-    if (!collectlabelsbetween(wl, from, to, ls, rs))
+    if (!collectlabelsbetween(wl, from, to, ls, enaregs, disregs))
         return 0;
 
     if (ls->labels)
@@ -1451,40 +1407,32 @@ static const char *lookuplabel(struct labelstruct *ls, uint32_t wordaddress)
     return NULL;
 }
 
-void printranges(FILE *fp, struct rangestruct *rs)
-{
-    struct range *r;
-
-    for (r = rs->first; r; r = r->next)
-        fprintf(fp, "0x%04x:0x%04x\n", r->begin, r->end);
-}
-
-void emitavrasm(struct wordlist *wl, int listing)
+void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing)
 {
     const char *label, *mnemonic, *operand;
     int d, r, b, k, K, A, q;
-    int thirtytwobit, inrng = 0;
+    int thirtytwobit, indisreg = 0;
     uint32_t targetwordaddr;
     uint32_t lastwordaddr = 0;
     size_t padding = 0, pd, lablen;
     struct labelstruct *ls;
-    struct rangestruct *rs;
-    struct range *rng;
+    struct regionstruct *disregs;
+    struct region *disreg;
 
     if ((ls = alloclabels()) == NULL) {
         fprintf(stderr, "Error allocating memory\n");
         return;
     }
 
-    if ((rs = allocranges()) == NULL) {
+    if ((disregs = allocregions()) == NULL) {
         fprintf(stderr, "Error allocating memory\n");
         return;
     }
 
-    if (!collectlabels(wl, ls, rs))
+    if (!collectlabels(wl, ls, enaregs, disregs))
         return;
 
-    printranges(stderr, rs);
+    printregions(stderr, disregs);
 
     if (ls->labelscount)
         padding = ((strlen(ls->labels[ls->labelscount-1].label)+1)/PADDING_TAB_SIZE+1)*PADDING_TAB_SIZE;
@@ -1513,15 +1461,15 @@ void emitavrasm(struct wordlist *wl, int listing)
         for (pd = 0; pd < padding-lablen; pd++)
             putc(' ', stdout);
 
-        if (!inrng) {
-            rng = inranges(rs, wl->wordaddress);
-            if (rng)
-                inrng = 1;
-        } else if (rng->end < wl->wordaddress) {
-            inrng = 0;
+        if (!indisreg) {
+            disreg = inregions(disregs, wl->wordaddress);
+            if (disreg)
+                indisreg = 1;
+        } else if (disreg->end < wl->wordaddress) {
+            indisreg = 0;
         }
 
-        if (inrng)
+        if (indisreg)
             printf(".dw 0x%04x\n", wl->word);
         else if (adc(wl->word, &d, &r))
             if (d != r)
@@ -1752,6 +1700,6 @@ void emitavrasm(struct wordlist *wl, int listing)
         lastwordaddr = wl->wordaddress;
     }   /* Main disassembly loop */
 
-    freeranges(rs);
+    freeregions(disregs);
     freelabels(ls);
 }
