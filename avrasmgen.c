@@ -1198,26 +1198,6 @@ static int addlabeladdr(struct labelstruct *ls, uint32_t wordaddress)
     return 1;
 }
 
-static struct region *inregionsprev(struct regionstruct *rs, uint32_t wordaddress, struct region **prev)
-{
-    struct region *r, *pr = NULL;
-
-    for (r = rs->first; r; r = r->next) {
-        if (r->begin <= wordaddress && wordaddress <= r->end) {
-            if (prev)
-                *prev = pr;
-            return r;
-        }
-        pr = r;
-    }
-    return NULL;
-}
-
-static struct region *inregions(struct regionstruct *rs, uint32_t wordaddress)
-{
-    return inregionsprev(rs, wordaddress, NULL);
-}
-
 static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to, struct labelstruct *ls, struct regionstruct *enaregs, struct regionstruct *disregs);
 
 static void sliceregionandcollect(struct wordlist *wl, struct labelstruct *ls, struct regionstruct *enaregs, struct regionstruct *disregs, uint32_t wordaddress)
@@ -1225,7 +1205,7 @@ static void sliceregionandcollect(struct wordlist *wl, struct labelstruct *ls, s
     struct region *r, *prev;
     uint32_t to;
 
-    if ((r = inregionsprev(disregs, wordaddress, &prev))) {
+    if ((r = inregionswithprev(disregs, wordaddress, &prev))) {
         to = r->end;
         r->end = wordaddress - 1;
         if (r->begin > r->end) {
