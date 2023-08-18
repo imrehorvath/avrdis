@@ -1319,7 +1319,7 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
                     }
                 }
             }
-        }
+        }   /* if !skip */
 
         prev = temp;
         if (i < 1)
