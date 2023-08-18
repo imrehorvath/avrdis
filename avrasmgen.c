@@ -1411,13 +1411,12 @@ void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing)
 {
     const char *label, *mnemonic, *operand;
     int d, r, b, k, K, A, q;
-    int thirtytwobit, indisreg = 0;
+    int thirtytwobit;
     uint32_t targetwordaddr;
     uint32_t lastwordaddr = 0;
     size_t padding = 0, pd, lablen;
     struct labelstruct *ls;
     struct regionstruct *disregs;
-    struct region *disreg;
 
     if ((ls = alloclabels()) == NULL) {
         fprintf(stderr, "Error allocating memory\n");
@@ -1461,15 +1460,7 @@ void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing)
         for (pd = 0; pd < padding-lablen; pd++)
             putc(' ', stdout);
 
-        if (!indisreg) {
-            disreg = inregions(disregs, wl->wordaddress);
-            if (disreg)
-                indisreg = 1;
-        } else if (disreg->end < wl->wordaddress) {
-            indisreg = 0;
-        }
-
-        if (indisreg)
+        if (!inregions(enaregs, wl->wordaddress) && inregions(disregs, wl->wordaddress))
             printf(".dw 0x%04x\n", wl->word);
         else if (adc(wl->word, &d, &r))
             if (d != r)
