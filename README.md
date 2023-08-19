@@ -44,15 +44,17 @@ Consider an example firmware `foo.hex` with the following content.
 :0200000004C03A
 :0200040018954D
 :10000800189503B103701127EDE0F0E0E00FF11F40
-:10001800099403C003C003C003C0F3CFF2CFF1CFEC
-:02002800F0CF17
+:10001800099403C003C003C003C003C0F2CFF1CFEB
+:10002800F0CFF0E0E0E4D0E0C0E60AE0C89509923D
+:1000380031960A95D9F7E5CF0001020304050607B2
+:020048000809A5
 :00000001FF
 ```
 We run `avrdis` to dissassemble it and get the following.
 ```
 % avrdis foo.hex
 0x0004:0x0004
-0x000d:0x0014
+0x000d:0x0024
     .org 0x0000
     rjmp L0
     .org 0x0002
@@ -71,17 +73,33 @@ L0: in r16, 0x03
     .dw 0xc003
     .dw 0xc003
     .dw 0xc003
-    .dw 0xcff3
+    .dw 0xc003
     .dw 0xcff2
     .dw 0xcff1
     .dw 0xcff0
+    .dw 0xe0f0
+    .dw 0xe4e0
+    .dw 0xe0d0
+    .dw 0xe6c0
+    .dw 0xe00a
+    .dw 0x95c8
+    .dw 0x9209
+    .dw 0x9631
+    .dw 0x950a
+    .dw 0xf7d9
+    .dw 0xcfe5
+    .dw 0x0100
+    .dw 0x0302
+    .dw 0x0504
+    .dw 0x0706
+    .dw 0x0908
 % 
 ```
 To see the instruction word addresses next to the disassebled code, we can use the `-l` option.
 ```
 % avrdis -l foo.hex
 0x0004:0x0004
-0x000d:0x0014
+0x000d:0x0024
 C:00000 c004     rjmp L0
 C:00002 9518     reti
 C:00004 9518     .dw 0x9518
@@ -97,10 +115,26 @@ C:0000d c003     .dw 0xc003
 C:0000e c003     .dw 0xc003
 C:0000f c003     .dw 0xc003
 C:00010 c003     .dw 0xc003
-C:00011 cff3     .dw 0xcff3
+C:00011 c003     .dw 0xc003
 C:00012 cff2     .dw 0xcff2
 C:00013 cff1     .dw 0xcff1
 C:00014 cff0     .dw 0xcff0
+C:00015 e0f0     .dw 0xe0f0
+C:00016 e4e0     .dw 0xe4e0
+C:00017 e0d0     .dw 0xe0d0
+C:00018 e6c0     .dw 0xe6c0
+C:00019 e00a     .dw 0xe00a
+C:0001a 95c8     .dw 0x95c8
+C:0001b 9209     .dw 0x9209
+C:0001c 9631     .dw 0x9631
+C:0001d 950a     .dw 0x950a
+C:0001e f7d9     .dw 0xf7d9
+C:0001f cfe5     .dw 0xcfe5
+C:00020 0100     .dw 0x0100
+C:00021 0302     .dw 0x0302
+C:00022 0504     .dw 0x0504
+C:00023 0706     .dw 0x0706
+C:00024 0908     .dw 0x0908
 % 
 ```
 The first two lines in the output are the program memory ranges, which are excluded from disassembly. Why are these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis of the code, or simulation of runtime behaviour to infer possible code regions for disassembly. Please note that the disabled address regions are printed to `stderr`, so you can redirect the output of the command to a file without worrying about the extra lines visible in the terminal.
@@ -111,9 +145,10 @@ So since code and data can co-exist in the program memory and the interpreptatio
 
 Those parts which are potentionally data, are emitted as `.dw 0xnnnn`. To enable the disassembly of such parts in case you sure that those are code and not data, you can use the `-e nnnn:nnnn` option to specify a range. Multiple `-e` options are allowed to specify disjunct ranges.
 
-To completly disassemble the above example we can use.
+To completly disassemble the above example we can use. Please note that the last words emmited with `.dw` are the data bytes from 0 to 9 and are not instructions to be executed.
 ```
-% avrdis -e 0:14 foo.hex
+% avrdis -e 0:10 foo.hex
+0x0020:0x0024
     .org 0x0000
     rjmp L0
     .org 0x0002
@@ -132,9 +167,25 @@ L0: in r16, 0x03
     rjmp L2
     rjmp L3
     rjmp L4
-L1: rjmp L0
+L1: rjmp L5
 L2: rjmp L0
 L3: rjmp L0
 L4: rjmp L0
+L5: ldi r31, 0
+    ldi r30, 64
+    ldi r29, 0
+    ldi r28, 96
+    ldi r16, 10
+L6: lpm
+    st Y+, r0
+    adiw r31:r30, 1
+    dec r16
+    brne L6
+    rjmp L0
+    .dw 0x0100
+    .dw 0x0302
+    .dw 0x0504
+    .dw 0x0706
+    .dw 0x0908
 % 
 ```
