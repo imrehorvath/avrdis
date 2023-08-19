@@ -103,7 +103,7 @@ C:00013 cff1     .dw 0xcff1
 C:00014 cff0     .dw 0xcff0
 % 
 ```
-The first two lines in the output are the program memory ranges, which are excluded from disassembly. Why are these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis of the code, or simulation of runtime behaviour to infer possible code regions for disassembly. By the way the disabled (skipped) address regions are printed to `stderr`, so it does not ruin your assembly source when you redirect it to a file.
+The first two lines in the output are the program memory ranges, which are excluded from disassembly. Why are these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis of the code, or simulation of runtime behaviour to infer possible code regions for disassembly. Please note that the disabled address regions are printed to `stderr`, so you can redirect it the output to a file without worrying about it.
 
 But why don't just disassemble the whole. That's because AVRs use a Modified Harvard Architecture which allows parts of the program memory to be accessed as data. This is very useful to store read-only data like character strings directly in the program memory and access them directly from there without the need to copy them to the SRAM first, since SRAM are rather limited in AVRs compared to the program memory (flash).
 
