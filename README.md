@@ -143,7 +143,7 @@ But why don't just disassemble firmware as a whole. That's because AVRs use a Mo
 
 So since code and data can co-exist in the program memory and the interpreptation of data as code can lead to issues, `avrdis` uses a simple approach to disassemble the parts only, those are directly accessible from the branching instructions.
 
-Those parts which are potentionally data, are emitted as `.dw 0xnnnn`. To enable the disassembly of such parts in case you sure that those are code and not data, you can use the `-e nnnn:nnnn` option to specify a range. Multiple `-e` options are allowed to specify disjunct ranges.
+Those parts which are potentionally data, are emitted as `.dw 0xnnnn`. To enable the disassembly of such parts in case you're sure that those are code and not data, you can use the `-e nnnn:nnnn` option to specify a range. Multiple `-e` options are allowed to specify disjunct ranges.
 
 To completly disassemble the above example we can use. Please note that the last words emmited with `.dw` are the data bytes from 0 to 9 and are not instructions to be executed.
 ```
