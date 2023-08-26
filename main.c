@@ -78,7 +78,7 @@ void printusage(void)
     fprintf(stderr, "  IHEX: Intel hex format, file should have an extension .hex\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -h : Show this usage info and exit.\n");
-    fprintf(stderr, "  -l : List word addresses and raw instructions with the disassembled code.\n");
+    fprintf(stderr, "  -l : List word addresses and raw instructions together with the disassembled code.\n");
     fprintf(stderr, "  -e nnnn:nnnn : Enable disassembly of otherwise disabled region. Multiple options are possible.\n");
     fprintf(stderr, "                 Use hex numbers. For reference, see listing of disabled regions to stderr.\n");
 }
