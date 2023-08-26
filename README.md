@@ -31,7 +31,7 @@ Currently supported inputfile types are: IHEX
   IHEX: Intel hex format, file should have an extension .hex
 Options:
   -h : Show this usage info and exit.
-  -l : List word addresses and raw instructions with the disassembled code.
+  -l : List word addresses and raw instructions together with the disassembled code.
   -e nnnn:nnnn : Enable disassembly of otherwise disabled region. Multiple options are possible.
                  Use hex numbers. For reference, see listing of disabled regions to stderr.
 ```
@@ -95,7 +95,7 @@ L0: in r16, 0x03
     .dw 0x0908
 % 
 ```
-To see the instruction word addresses next to the disassebled code, we can use the `-l` option.
+To see the instruction word addresses next to the disassebled code, we can use the option `-l`.
 ```
 % avrdis -l foo.hex
 0x0004:0x0004
