@@ -94,7 +94,7 @@ L0: in r16, 0x03
     .dw 0x0908
 % 
 ```
-To get the complete listing with addresses and raw words along with the disassebled code, use the option `-l`.
+To get the complete listing with addresses and raw words along with the disassebled code, use the `-l` option.
 ```
 % avrdis -l foo.hex
 0x0004:0x0004
@@ -138,15 +138,15 @@ C:00024 0908     .dw 0x0908
 ```
 The first two lines in the output are the program memory ranges, which are excluded from disassembly. Why are these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis of the code, or simulation of runtime behavior to infer possible code regions for disassembly. Please note that the disabled address regions are printed to `stderr`, so you can redirect the output of the command to a file without worrying about the extra lines visible in the terminal.
 
-But why don't just disassemble the whole firmware altogether? That's because AVRs use a Modified Harvard Architecture which allows parts of the program memory to be accessed as data. This is very useful to store read-only data like character strings or data tables directly in the program memory and access them directly from there, without the need to copy them to the SRAM first. Note that the SRAM is rather limited in AVRs compared to the program memory (flash).
+The reason for this complexity comes from the fact that AVRs use a Modified Harvard Architecture which allows parts of the program memory to be accessed as data. This is very useful to store read-only data like character strings or data tables directly in the program memory without the need to copy them to the SRAM first. (Note that the SRAM is rather limited in AVRs compared to the program memory.)
 
-So since code and data can co-exist in the program memory and the interpreptation of data as code can lead to issues, `avrdis` uses a simple approach to disassemble the parts only, those are directly accessible from the branching instructions, thus guarantied to be code.
+So since code and data can co-exist in the program memory and the interpreptation of data as code can lead to issues during the disassembly, `avrdis` uses a simple approach to disassemble the parts only, those are directly accessible from the branching instructions, thus guarantied to be code.
 
 Those parts which are potentionally data, are emitted as `.dw 0xnnnn`. To enable the disassembly of such parts in case you're sure that those are code and not data, you can use the option `-e nnnn:nnnn` to specify a range. Multiple `-e` options are allowed to specify multiple ranges.
 
 The full disassembly of a "mixed" firmware usually takes multiple iterations using the option `-e` to explore the non-trivial parts.
 
-To completly disassemble the above example we can use the option `-e` as shown below. Please note that the last words emmited with `.dw` are the data bytes from 0 to 9 and are not instructions to be executed.
+To completly disassemble the above example we can use the `-e` option as shown below. Please note that the last words emmited with `.dw` are the data bytes from 0 to 9 and are not instructions to be executed.
 ```
 % avrdis -e 0:10 foo.hex
 0x0020:0x0024
