@@ -94,7 +94,7 @@ L0: in r16, 0x03
     .dw 0x0908
 % 
 ```
-To see the instruction word addresses next to the disassebled code, use the option `-l`.
+To get the complete listing with addresses and raw words along with the disassebled code, use the option `-l`.
 ```
 % avrdis -l foo.hex
 0x0004:0x0004
