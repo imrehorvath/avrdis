@@ -94,7 +94,7 @@ L0: in r16, 0x03
     .dw 0x0908
 % 
 ```
-To get the complete listing with addresses and raw words along with the disassebled code, use the `-l` option.
+To get the complete listing with addresses and raw words along with the disassebled code, use the `-l` option. (Note that the word addresses from the listing can be used with the `-e` option later on, when exploring. See below!)
 ```
 % avrdis -l foo.hex
 0x0004:0x0004
@@ -146,7 +146,7 @@ Those parts which are potentionally data, are emitted as `.dw 0xnnnn`. To enable
 
 The full disassembly of a "mixed" firmware usually takes multiple iterations using the `-e` option to explore the non-trivial parts.
 
-To completly disassemble the above example we can use the `-e` option as shown below. Please note that the last words emmited with `.dw` are the data bytes from 0 to 9 and are not instructions to be executed.
+To completly disassemble the above example, use the `-e` option as shown below. Please note that the last words emmited with `.dw` are the data bytes from 0 to 9 and are not instructions to be executed.
 ```
 % avrdis -e 0:10 foo.hex
 0x0020:0x0024
