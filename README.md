@@ -146,10 +146,53 @@ Those parts which are potentionally data, are emitted as `.dw 0xnnnn`. To enable
 
 The full disassembly of a "mixed" firmware usually takes multiple iterations using the `-e` option to explore the non-trivial parts.
 
-To completly disassemble the above example, use the `-e` option as shown below. Please note that the last words emmited with `.dw` are the data bytes from 0 to 9 and are not instructions to be executed.
+After exploration of the above example, use the `-l` and `-e` options to get a listing of the properly disassembled code, with code words disassembled and data left as it is. The word address range `0x0020:0x0024` condains the data, that is referred by the `ldi` instructions at addresses `C:00015` and `C:00016` as decimal byte address high and low respectively. (Note that the word address `0x0020` translates to the byte address `0x0040` which is 0 high and 64 low in decimal.)
 ```
-% avrdis -e 0:10 foo.hex
+% avrdis -l -e 0:10 foo.hex
 0x0020:0x0024
+C:00000 c004     rjmp L0
+C:00002 9518     reti
+C:00004 9518     reti
+C:00005 b103 L0: in r16, 0x03
+C:00006 7003     andi r16, 3
+C:00007 2711     clr r17
+C:00008 e0ed     ldi r30, 13
+C:00009 e0f0     ldi r31, 0
+C:0000a 0fe0     add r30, r16
+C:0000b 1ff1     adc r31, r17
+C:0000c 9409     ijmp
+C:0000d c003     rjmp L1
+C:0000e c003     rjmp L2
+C:0000f c003     rjmp L3
+C:00010 c003     rjmp L4
+C:00011 c003 L1: rjmp L5
+C:00012 cff2 L2: rjmp L0
+C:00013 cff1 L3: rjmp L0
+C:00014 cff0 L4: rjmp L0
+C:00015 e0f0 L5: ldi r31, 0
+C:00016 e4e0     ldi r30, 64
+C:00017 e0d0     ldi r29, 0
+C:00018 e6c0     ldi r28, 96
+C:00019 e00a     ldi r16, 10
+C:0001a 95c8 L6: lpm
+C:0001b 9209     st Y+, r0
+C:0001c 9631     adiw r31:r30, 1
+C:0001d 950a     dec r16
+C:0001e f7d9     brne L6
+C:0001f cfe5     rjmp L0
+C:00020 0100     .dw 0x0100
+C:00021 0302     .dw 0x0302
+C:00022 0504     .dw 0x0504
+C:00023 0706     .dw 0x0706
+C:00024 0908     .dw 0x0908
+% 
+```
+
+Finally, the raw source code can be redirected to a source file for further tinkering in a code editor or IDE.
+```
+% avrdis -e 0:10 foo.hex >foo.asm
+0x0020:0x0024
+% cat foo.asm
     .org 0x0000
     rjmp L0
     .org 0x0002
@@ -188,5 +231,4 @@ L6: lpm
     .dw 0x0504
     .dw 0x0706
     .dw 0x0908
-% 
 ```
