@@ -23,7 +23,25 @@ You have an unlocked 8-bit AVR microcontroller, and you want to tinker with the 
 
 ## Usage
 
+First make the project.
 ```
+$ cd avrdis
+$ make
+$ make install
+```
+
+This will install the `avrdis` executable into `/usr/local/bin` by default.
+
+In case you wish to install it elsewhere, you can set the DESTDIR and the PREFIX variables accordingly.
+```
+$ make install DESTDIR=~/temp/ PREFIX=.
+```
+
+This will install the `avrdis` executable into `~/temp/bin`.
+
+You can use the `-h` option to show the usage.
+```
+$ avrdis -h
 AVR Disassembler for the 8-bit AVRs. v1.0.0 (c) Imre Horvath, 2023
 Usage: avrdis [options] inputfile
 Currently supported inputfile types are: IHEX
@@ -33,6 +51,7 @@ Options:
   -l : List word addresses and raw instructions together with the disassembled code.
   -e nnnn:nnnn : Enable disassembly of otherwise disabled region. Multiple options are possible.
                  Use hex numbers. For reference, see listing of disabled regions to stderr.
+$ 
 ```
 
 ## Example 1

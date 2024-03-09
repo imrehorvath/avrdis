@@ -1,8 +1,8 @@
-CC=gcc
-CFLAGS=-I. -Wall -O2
-DEPS=avrdis.h
-OBJECTS=main.o avrdis.o ihexparser.o avrasmgen.o
-PREFIX?=/usr/local
+CC = gcc
+CFLAGS = -I. -Wall -O2
+DEPS = avrdis.h
+OBJECTS = main.o avrdis.o ihexparser.o avrasmgen.o
+PREFIX ?= /usr/local
 
 .PHONY: all clean install
 
