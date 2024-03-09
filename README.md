@@ -70,7 +70,7 @@ Consider an example firmware `foo.hex` with the following content.
 ```
 Run `avrdis` to dissassemble it.
 ```
-% avrdis foo.hex
+$ avrdis foo.hex
 0x0004:0x0004
 0x000d:0x0024
     .org 0x0000
@@ -111,11 +111,11 @@ L0: in r16, 0x03
     .dw 0x0504
     .dw 0x0706
     .dw 0x0908
-% 
+$ 
 ```
 To get the complete listing with addresses and raw words along with the disassebled code, use the `-l` option. (Note that the word addresses from the listing can be used with the `-e` option later on, when exploring. See below!)
 ```
-% avrdis -l foo.hex
+$ avrdis -l foo.hex
 0x0004:0x0004
 0x000d:0x0024
 C:00000 c004     rjmp L0
@@ -153,7 +153,7 @@ C:00021 0302     .dw 0x0302
 C:00022 0504     .dw 0x0504
 C:00023 0706     .dw 0x0706
 C:00024 0908     .dw 0x0908
-% 
+$ 
 ```
 The first two lines in the output are the program memory ranges, which are excluded from disassembly. Why are these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis of the code, or simulation of runtime behavior to infer possible code regions for disassembly. Please note that the disabled address regions are printed to `stderr`, so you can redirect the output of the command to a file without worrying about the extra lines visible in the terminal.
 
@@ -167,7 +167,7 @@ The full disassembly of a "mixed" firmware usually takes multiple iterations usi
 
 After exploration of the above example, use the `-l` and `-e` options to get a listing of the properly disassembled code, with code words disassembled and data left as it is. The word address range `0x0020:0x0024` condains the data, that is referred by the `ldi` instructions at addresses `C:00015` and `C:00016` as decimal byte address high and low respectively. (Note that the word address `0x0020` translates to the byte address `0x0040` which is 0 high and 64 low in decimal.)
 ```
-% avrdis -l -e 0:10 foo.hex
+$ avrdis -l -e 0:10 foo.hex
 0x0020:0x0024
 C:00000 c004     rjmp L0
 C:00002 9518     reti
@@ -204,14 +204,14 @@ C:00021 0302     .dw 0x0302
 C:00022 0504     .dw 0x0504
 C:00023 0706     .dw 0x0706
 C:00024 0908     .dw 0x0908
-% 
+$ 
 ```
 
 Finally, the raw source code can be redirected to a source file for further tinkering in a code editor or IDE.
 ```
-% avrdis -e 0:10 foo.hex >foo.asm
+$ avrdis -e 0:10 foo.hex >foo.asm
 0x0020:0x0024
-% cat foo.asm
+$ cat foo.asm
     .org 0x0000
     rjmp L0
     .org 0x0002
@@ -250,5 +250,5 @@ L6: lpm
     .dw 0x0504
     .dw 0x0706
     .dw 0x0908
-% 
+$ 
 ```
