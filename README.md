@@ -58,6 +58,7 @@ $
 
 Consider an example firmware `foo.hex` with the following content.
 ```
+$ cat foo.hex
 :020000020000FC
 :0200000004C03A
 :0200040018954D
@@ -67,6 +68,7 @@ Consider an example firmware `foo.hex` with the following content.
 :1000380031960A95D9F7E5CF0001020304050607B2
 :020048000809A5
 :00000001FF
+$ 
 ```
 Run `avrdis` to dissassemble it.
 ```
@@ -167,7 +169,49 @@ The full disassembly of a "mixed" firmware usually takes multiple iterations usi
 
 After exploration of the above example, use the `-l` and `-e` options to get a listing of the properly disassembled code, with code words disassembled and data left as it is. The word address range `0x0020:0x0024` condains the data, that is referred by the `ldi` instructions at addresses `C:00015` and `C:00016` as decimal byte address high and low respectively. (Note that the word address `0x0020` translates to the byte address `0x0040` which is 0 high and 64 low in decimal.)
 ```
-$ avrdis -l -e 0:10 foo.hex
+$ avrdis -l -e 4:4 foo.hex
+0x000d:0x0024
+C:00000 c004     rjmp L0
+C:00002 9518     reti
+C:00004 9518     reti
+C:00005 b103 L0: in r16, 0x03
+C:00006 7003     andi r16, 3
+C:00007 2711     clr r17
+C:00008 e0ed     ldi r30, 13
+C:00009 e0f0     ldi r31, 0
+C:0000a 0fe0     add r30, r16
+C:0000b 1ff1     adc r31, r17
+C:0000c 9409     ijmp
+C:0000d c003     .dw 0xc003
+C:0000e c003     .dw 0xc003
+C:0000f c003     .dw 0xc003
+C:00010 c003     .dw 0xc003
+C:00011 c003     .dw 0xc003
+C:00012 cff2     .dw 0xcff2
+C:00013 cff1     .dw 0xcff1
+C:00014 cff0     .dw 0xcff0
+C:00015 e0f0     .dw 0xe0f0
+C:00016 e4e0     .dw 0xe4e0
+C:00017 e0d0     .dw 0xe0d0
+C:00018 e6c0     .dw 0xe6c0
+C:00019 e00a     .dw 0xe00a
+C:0001a 95c8     .dw 0x95c8
+C:0001b 9209     .dw 0x9209
+C:0001c 9631     .dw 0x9631
+C:0001d 950a     .dw 0x950a
+C:0001e f7d9     .dw 0xf7d9
+C:0001f cfe5     .dw 0xcfe5
+C:00020 0100     .dw 0x0100
+C:00021 0302     .dw 0x0302
+C:00022 0504     .dw 0x0504
+C:00023 0706     .dw 0x0706
+C:00024 0908     .dw 0x0908
+$ 
+```
+
+Then reveal the `ijmp` targets.
+```
+$ avrdis -l -e 4:4 -e d:11 foo.hex
 0x0020:0x0024
 C:00000 c004     rjmp L0
 C:00002 9518     reti
@@ -207,9 +251,10 @@ C:00024 0908     .dw 0x0908
 $ 
 ```
 
-Finally, the raw source code can be redirected to a source file for further tinkering in a code editor or IDE.
+
+Finally, the raw source code can be redirected to a `.asm` file for further tinkering in a code editor, by omitting the `-l` option.
 ```
-$ avrdis -e 0:10 foo.hex >foo.asm
+$ avrdis -e 4:4 -e d:11 foo.hex >foo.asm
 0x0020:0x0024
 $ cat foo.asm
     .org 0x0000
