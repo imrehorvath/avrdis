@@ -252,7 +252,7 @@ $
 ```
 
 
-Finally, the raw source code can be redirected to a `.asm` file for further tinkering in a code editor, by omitting the `-l` option.
+Finally, the raw source code can be redirected to a `.asm` file for further tinkering in a code editor. (Note that the `-l` option was dropped to get the `.asm` source only.)
 ```
 $ avrdis -e 4:4 -e d:11 foo.hex >foo.asm
 0x0020:0x0024
