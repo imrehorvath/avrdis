@@ -32,7 +32,7 @@ $ make install
 
 This will install the `avrdis` executable into `/usr/local/bin` by default.
 
-In case you wish to install it elsewhere, you can set a different PREFIX.
+In case you wish to install it elsewhere, you can set a different `PREFIX`.
 ```
 $ make install PREFIX=~/temp
 ```
@@ -54,7 +54,7 @@ Options:
 $ 
 ```
 
-## Example 1
+## Example
 
 Consider an example firmware `foo.hex` with the following content.
 ```
