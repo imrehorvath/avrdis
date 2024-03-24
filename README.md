@@ -9,7 +9,7 @@ Output is written to stdout. In case of a successful run, the exit status is 0. 
 - Maximum portability. Written in C and uses libc only, no extra libraries needed.
 - Loosley coupled modular design, with clearly separated parts makes it easy to extend with new input format parsers without touching other parts.
 
-## Tipical Use Case
+## Typical Use Case
 
 You have an unlocked 8-bit AVR microcontroller, and you want to tinker with the code but you don't have the source code.
 
