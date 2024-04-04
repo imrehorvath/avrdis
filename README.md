@@ -1,24 +1,24 @@
 # avrdis
 AVR Disassembler for the 8-bit AVRs.
 
-Generates AVRASM assembly source out of the input file provided. Alternatively, it generates the listing with the word addressess and instruction words along with the assembly source.
-Output is written to stdout. In case of a successful run, the exit status is 0. Otherwise it's 1. Error messages are written to stderr.
+Generates AVRASM assembly source out of the input file provided. Alternatively, it generates the listing with the word addresses and instruction words along with the assembly source.
+Output is written to stdout. In case of a successful run, the exit status is 0. Otherwise it's 1. Error messages gets written to stderr.
 
 ## Design- and Implementation considerations
 
 - Maximum portability. Written in C and uses libc only, no extra libraries needed.
-- Loosley coupled modular design, with clearly separated parts makes it easy to extend with new input format parsers without touching other parts.
+- Loosely coupled modular design, with clearly separated parts makes it easy to extend with new input format parsers without touching other parts.
 
 ## Typical Use Case
 
-You have an unlocked 8-bit AVR microcontroller, and you want to tinker with the code but you don't have the source code.
+You have an unlocked 8-bit AVR microcontroller, and you want to tinker with the code but you don't have the source.
 
 ## Workflow
 
 1. Use `avrdude` to extract the flash contents into an ihex file.
-2. Use `avrdis` to disassemble the code. (eg. `avrdis m328p.hex > m328p.asm`)
+2. Use `avrdis` to disassemble the code.
 3. Use a code editor or IDE to edit the asm file.
-4. Use `avrasm2.exe` or `avra` assemblers to compile the modified source into an ihex file.
+4. Use `avrasm2.exe` or `avra` assemblers to compile the modified source code into an ihex file.
 5. Use `avrdude` to flash the modified firmware.
 
 ## Usage
@@ -33,15 +33,16 @@ $ make install
 This will install the `avrdis` executable into `/usr/local/bin` by default.
 
 In case you wish to install it elsewhere, you can set a different `PREFIX`.
-```
-$ make install PREFIX=~/temp
-```
+
+`$ make install PREFIX=~/temp`
 
 This will install the `avrdis` executable into `~/temp/bin`.
 
 You can use the `-h` option to show the usage.
+
+`$ avrdis -h`
+
 ```
-$ avrdis -h
 AVR Disassembler for the 8-bit AVRs. v1.0.0 (c) Imre Horvath, 2023
 Usage: avrdis [options] inputfile
 Currently supported inputfile types are: IHEX
@@ -51,14 +52,15 @@ Options:
   -l : List word addresses and raw instructions together with the disassembled code.
   -e nnnn:nnnn : Enable disassembly of otherwise disabled region. Multiple options are possible.
                  Use hex numbers. For reference, see listing of disabled regions to stderr.
-$ 
 ```
 
 ## Example
 
 Consider an example firmware `foo.hex` with the following content.
+
+`$ cat foo.hex`
+
 ```
-$ cat foo.hex
 :020000020000FC
 :0200000004C03A
 :0200040018954D
@@ -68,11 +70,13 @@ $ cat foo.hex
 :1000380031960A95D9F7E5CF0001020304050607B2
 :020048000809A5
 :00000001FF
-$ 
 ```
+
 Run `avrdis` to dissassemble it.
+
+`$ avrdis foo.hex`
+
 ```
-$ avrdis foo.hex
 0x0004:0x0004
 0x000d:0x0024
     .org 0x0000
@@ -113,11 +117,13 @@ L0: in r16, 0x03
     .dw 0x0504
     .dw 0x0706
     .dw 0x0908
-$ 
 ```
-To get the complete listing with addresses and raw words along with the disassebled code, use the `-l` option. (Note that the word addresses from the listing can be used with the `-e` option later on, when exploring. See below!)
+
+To get the complete listing with addresses and raw instruction words along with the disassebled code, use the `-l` option.
+
+`$ avrdis -l foo.hex`
+
 ```
-$ avrdis -l foo.hex
 0x0004:0x0004
 0x000d:0x0024
 C:00000 c004     rjmp L0
@@ -155,21 +161,23 @@ C:00021 0302     .dw 0x0302
 C:00022 0504     .dw 0x0504
 C:00023 0706     .dw 0x0706
 C:00024 0908     .dw 0x0908
-$ 
 ```
-The first two lines in the output are the program memory ranges, which are excluded from disassembly. Why are these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis of the code, or simulation of runtime behavior to infer possible code regions for disassembly. Please note that the disabled address regions are printed to `stderr`, so you can redirect the output of the command to a file without worrying about the extra lines visible in the terminal.
 
-The reason for this complexity comes from the fact that AVRs use a Modified Harvard Architecture which allows parts of the program memory to be accessed as data. This is very useful to store read-only data like character strings or data tables directly in the program memory. (Note that the SRAM is rather limited in AVRs compared to the program memory.)
+The first two lines in the output are the program memory ranges, which were excluded from disassembly. Why were these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis of the code, or simulation of runtime behavior to infer possible code regions for disassembly. (Please note that the disabled address regions are printed to `stderr`, so you can redirect the output of the command to a file without worrying about the extra lines visible in the terminal.)
 
-So since code and data can co-exist in the program memory and the interpreptation of data as code can lead to issues during the disassembly, `avrdis` uses a simple approach to disassemble the parts only, those are directly accessible from the branching instructions, thus guarantied to be code.
+The reason for this complexity comes from the fact that AVRs use a Modified Harvard Architecture which allows parts of the program memory to be accessed as data. This is very useful to store read-only data like character strings or data tables directly in the program memory. (Note that the SRAM is either absent, or rather limited in AVRs as opposed to the program memory.)
 
-Those parts which are potentionally data, are emitted as `.dw 0xnnnn`. To enable the disassembly of such parts in case you're sure that those are code and not data, you can use the `-e nnnn:nnnn` option to specify a range. Multiple `-e` options are allowed to specify multiple ranges.
+So since code and data can co-exist in the program memory and the interpreptation of data as code can lead to issues during disassembly, `avrdis` uses a simple approach to disassemble the parts only, that are directly accessible from the branching instructions, thus guarantied to be code.
 
-The full disassembly of a "mixed" firmware usually takes multiple iterations using the `-e` option to explore the non-trivial parts.
+The parts which are potentionally data, gets emitted as `.dw 0xnnnn`. To enable the disassembly of such parts in case you're sure that those are code and not data, you can use the `-e nnnn:nnnn` option to specify a range. Multiple `-e` options are allowed to specify multiple ranges.
+
+The full disassembly of a "mixed" firmware usually takes multiple iterations using the `-l` and `-e` options together, to explore the non-trivial parts.
 
 After exploration of the above example, use the `-l` and `-e` options to get a listing of the properly disassembled code, with code words disassembled and data left as it is. The word address range `0x0020:0x0024` condains the data, that is referred by the `ldi` instructions at addresses `C:00015` and `C:00016` as decimal byte address high and low respectively. (Note that the word address `0x0020` translates to the byte address `0x0040` which is 0 high and 64 low in decimal.)
+
+`$ avrdis -l -e 4:4 foo.hex`
+
 ```
-$ avrdis -l -e 4:4 foo.hex
 0x000d:0x0024
 C:00000 c004     rjmp L0
 C:00002 9518     reti
@@ -206,12 +214,13 @@ C:00021 0302     .dw 0x0302
 C:00022 0504     .dw 0x0504
 C:00023 0706     .dw 0x0706
 C:00024 0908     .dw 0x0908
-$ 
 ```
 
 Then reveal the `ijmp` targets.
+
+`$ avrdis -l -e 4:4 -e d:11 foo.hex`
+
 ```
-$ avrdis -l -e 4:4 -e d:11 foo.hex
 0x0020:0x0024
 C:00000 c004     rjmp L0
 C:00002 9518     reti
@@ -248,15 +257,17 @@ C:00021 0302     .dw 0x0302
 C:00022 0504     .dw 0x0504
 C:00023 0706     .dw 0x0706
 C:00024 0908     .dw 0x0908
-$ 
 ```
-
 
 Finally, the raw source code can be redirected to a `.asm` file for further tinkering in a code editor. (Note that the `-l` option was dropped to get the `.asm` source only.)
+
+`$ avrdis -e 4:4 -e d:11 foo.hex >foo.asm`
+
+`0x0020:0x0024`
+
+`$ cat foo.asm`
+
 ```
-$ avrdis -e 4:4 -e d:11 foo.hex >foo.asm
-0x0020:0x0024
-$ cat foo.asm
     .org 0x0000
     rjmp L0
     .org 0x0002
@@ -295,5 +306,4 @@ L6: lpm
     .dw 0x0504
     .dw 0x0706
     .dw 0x0908
-$ 
 ```
