@@ -92,7 +92,7 @@ int main(int argc, char **argv)
 {
     int i, listing = 0;
     char *filename = NULL;
-    struct wordlist *wl;
+    struct wordlist *wl = NULL;
     struct regionstruct *enaregs;
     uint32_t begin, end;
 
@@ -136,6 +136,7 @@ int main(int argc, char **argv)
         case FILETYPE_IHEX:
             wl = parseihexfile(filename);
             break;
+        /* Other file types goes here... */
         case FILETYPE_UNKNOWN:
             fprintf(stderr, "Unknown file type %s\n", filename), usageandexit(1);
             break;
