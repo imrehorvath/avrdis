@@ -17,12 +17,6 @@ if ! ../avrdis -l test_src.hex 2>/dev/null | diff test_plain.lst -; then
 fi
 echo "Listing generation PASSED"
 
-if ! (../avrdis test_src.hex 3>&1 1>&2 2>&3) 2>/dev/null | diff test_stderr.txt -; then
-    echo "Disabled region detection has FAILED"
-    exit 1
-fi
-echo "Disabled region detection PASSED"
-
 if ! ../avrdis -l -e 8:9 test_src.hex 2>/dev/null | diff test_ena.lst -; then
     echo "Enable region for disassembly in listing has FAILED"
     exit 1

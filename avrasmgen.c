@@ -1411,7 +1411,9 @@ void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing)
     if (!collectlabels(wl, ls, enaregs, disregs))
         return;
 
-    printregions(stderr, disregs);
+    /* Print disabled regions in lising mode only */
+    if (listing)
+        printregions(disregs);
 
     if (ls->labelscount)
         padding = ((strlen(ls->labels[ls->labelscount-1].label)+1)/PADDING_TAB_SIZE+1)*PADDING_TAB_SIZE;

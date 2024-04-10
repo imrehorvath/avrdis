@@ -77,8 +77,6 @@ Run `avrdis` to dissassemble it.
 `$ avrdis foo.hex`
 
 ```
-0x0004:0x0004
-0x000d:0x0024
     .org 0x0000
     rjmp L0
     .org 0x0002
@@ -119,7 +117,7 @@ L0: in r16, 0x03
     .dw 0x0908
 ```
 
-To get the complete listing with addresses and raw instruction words along with the disassebled code, use the `-l` option.
+Notice that there are a lot of not disassembled instruction words with `.dw 0xnnnn` after the `ijmp` instruction in the output! To get more insight, use the `-l` option.
 
 `$ avrdis -l foo.hex`
 
@@ -163,11 +161,11 @@ C:00023 0706     .dw 0x0706
 C:00024 0908     .dw 0x0908
 ```
 
-The first two lines in the output are the program memory ranges, which were excluded from disassembly. Why were these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis of the code, or simulation of runtime behavior to infer possible code regions for disassembly. (Please note that the disabled address regions are printed to `stderr`, so you can redirect the output of the command to a file without worrying about the extra lines visible in the terminal.)
+The first two lines in the output are the program memory ranges, which were excluded from disassembly. Why were these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis of the code, or simulation of runtime behavior to infer possible code regions for disassembly.
 
 The reason for this complexity comes from the fact that AVRs use a Modified Harvard Architecture which allows parts of the program memory to be accessed as data. This is very useful to store read-only data like character strings or data tables directly in the program memory. (Note that the SRAM is either absent, or rather limited in AVRs as opposed to the program memory.)
 
-So since code and data can co-exist in the program memory and the interpreptation of data as code can lead to issues during disassembly, `avrdis` uses a simple approach to disassemble the parts only, that are directly accessible from the branching instructions, thus guarantied to be code.
+So since code and data can co-exist in the program memory and the interpreptation of data as code can lead to issues during disassembly when label addresses gets collected, `avrdis` uses a simple approach to disassemble the parts only, that are directly accessible from the branching instructions, thus guarantied to be code.
 
 The parts which are potentionally data, gets emitted as `.dw 0xnnnn`. To enable the disassembly of such parts in case you're sure that those are code and not data, you can use the `-e nnnn:nnnn` option to specify a range. Multiple `-e` options are allowed to specify multiple ranges.
 
@@ -259,11 +257,9 @@ C:00023 0706     .dw 0x0706
 C:00024 0908     .dw 0x0908
 ```
 
-Finally, the raw source code can be redirected to a `.asm` file for further tinkering in a code editor. (Note that the `-l` option was dropped to get the `.asm` source only.)
+Finally, the raw source code can be redirected to a `.asm` file for further tinkering in a code editor.
 
 `$ avrdis -e 4:4 -e d:11 foo.hex >foo.asm`
-
-`0x0020:0x0024`
 
 `$ cat foo.asm`
 

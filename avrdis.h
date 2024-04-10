@@ -41,7 +41,7 @@ void freeregions(struct regionstruct *rs);
 int addregion(struct regionstruct *rs, uint32_t begin, uint32_t end);
 struct region *inregionswithprev(struct regionstruct *rs, uint32_t wordaddress, struct region **prev);
 struct region *inregions(struct regionstruct *rs, uint32_t wordaddress);
-void printregions(FILE *fp, struct regionstruct *rs);
+void printregions(struct regionstruct *rs);
 
 int strcmpnocase(const char *lhs, const char *rhs);
 

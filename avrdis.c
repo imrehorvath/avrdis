@@ -88,12 +88,12 @@ struct region *inregions(struct regionstruct *rs, uint32_t wordaddress)
     return inregionswithprev(rs, wordaddress, NULL);
 }
 
-void printregions(FILE *fp, struct regionstruct *rs)
+void printregions(struct regionstruct *rs)
 {
     struct region *r;
 
     for (r = rs->first; r; r = r->next)
-        fprintf(fp, "0x%04x:0x%04x\n", r->begin, r->end);
+        printf("0x%04x:0x%04x\n", r->begin, r->end);
 }
 
 int strcmpnocase(const char *lhs, const char *rhs)
