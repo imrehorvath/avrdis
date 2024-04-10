@@ -57,22 +57,26 @@ int deterfiletype(char *filename)
     int check;
     char *ext = fileextension(filename);
 
+    /* When file has an extension, determine file type by the extension */
     if (ext) {
         if (!strcmpnocase(ext, "hex"))
             return FILETYPE_IHEX;
+        /* More extension types goes here below... */
     }
 
+    /* Otherwise, try to infer type by its contents */
     if ((check = ihexfile(filename)) == -1)
         return FILETYPE_ERROR;
     if (check)
         return FILETYPE_IHEX;
+    /* More file type-checks goes here below... */
 
     return FILETYPE_UNKNOWN;
 }
 
-void printusage(void)
+void usageandexit(int exitcode)
 {
-    fprintf(stderr, "AVR Disassembler for the 8-bit AVRs. v%s (c) Imre Horvath, 2023\n", VERSION);
+    fprintf(stderr, "AVR Disassembler for the 8-bit AVRs. v%s (c) Imre Horvath, 2024\n", VERSION);
     fprintf(stderr, "Usage: %s [options] inputfile\n", command);
     fprintf(stderr, "Currently supported inputfile types are: IHEX\n");
     fprintf(stderr, "  IHEX: Intel hex format, file should have an extension .hex\n");
@@ -81,6 +85,7 @@ void printusage(void)
     fprintf(stderr, "  -l : List word addresses and raw instructions together with the disassembled code.\n");
     fprintf(stderr, "  -e nnnn:nnnn : Enable disassembly of otherwise disabled region. Multiple options are possible.\n");
     fprintf(stderr, "                 Use hex numbers. For reference, see listing of disabled regions to stderr.\n");
+    exit(exitcode);
 }
 
 int main(int argc, char **argv)
@@ -94,7 +99,7 @@ int main(int argc, char **argv)
     command = cmdname(argv[0]);
 
     if (argc < 2)
-        printusage(), exit(1);
+        usageandexit(1);
 
     enaregs = allocregions();
     if (!enaregs)
@@ -105,38 +110,38 @@ int main(int argc, char **argv)
             if (!strcmp(argv[i], "-l"))
                 listing = 1;
             else if (!strcmp(argv[i], "-h"))
-                printusage(), exit(0);
+                usageandexit(0);
             else if (!strcmp(argv[i], "-e")) {
                 if (i+1 >= argc)
-                    fprintf(stderr, "Address after option -e missing.\n"), printusage(), exit(1);
+                    fprintf(stderr, "Address after option -e missing.\n"), usageandexit(1);
                 i++;
                 if (sscanf(argv[i], "%x:%x", &begin, &end) != 2)
-                    fprintf(stderr, "Option -e : Failed to parse a hex memory address range.\n"), printusage(), exit(1);
+                    fprintf(stderr, "Option -e : Failed to parse a hex memory address range.\n"), usageandexit(1);
                 if (begin > end)
-                    fprintf(stderr, "Option -e : Starting address must be smaller or equal than end address.\n"), printusage(), exit(1);
+                    fprintf(stderr, "Option -e : Starting address must be smaller or equal than end address.\n"), usageandexit(1);
                 if (!addregion(enaregs, begin, end))
                     fprintf(stderr, "Error allocating memory\n"), exit(1);
             } else
-                fprintf(stderr, "Invalid option %s\n", argv[i]), printusage(), exit(1);
+                fprintf(stderr, "Invalid option %s\n", argv[i]), usageandexit(1);
         else
             if (filename)
-                fprintf(stderr, "%s expects a single filename\n", command), printusage(), exit(1);
+                fprintf(stderr, "%s expects a single filename\n", command), usageandexit(1);
             else
                 filename = argv[i];
 
     if (!filename)
-        fprintf(stderr, "No filename specified\n"), printusage(), exit(1);
+        fprintf(stderr, "No filename specified\n"), usageandexit(1);
 
     switch (deterfiletype(filename)) {
         case FILETYPE_IHEX:
             wl = parseihexfile(filename);
             break;
         case FILETYPE_UNKNOWN:
-            fprintf(stderr, "Unknown file type %s\n", filename), printusage();
-            return 1;
+            fprintf(stderr, "Unknown file type %s\n", filename), usageandexit(1);
+            break;
         case FILETYPE_ERROR:
-            fprintf(stderr, "Error occured during determining file type %s\n", filename);
-            return 1;
+            fprintf(stderr, "Error occured during determining file type %s\n", filename), exit(1);
+            break;
     }
 
     emitavrasm(wl, enaregs, listing);
