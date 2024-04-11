@@ -82,9 +82,9 @@ void usageandexit(int exitcode)
     fprintf(stderr, "  IHEX: Intel hex format, file should have an extension .hex\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -h : Show this usage info and exit.\n");
-    fprintf(stderr, "  -l : List word addresses and raw instructions together with the disassembled code.\n");
+    fprintf(stderr, "  -l : List disabled regions, word addresses and raw instructions together with the disassembled code.\n");
     fprintf(stderr, "  -e nnnn:nnnn : Enable disassembly of otherwise disabled region. Multiple options are possible.\n");
-    fprintf(stderr, "                 Use hex numbers. For reference, see listing of disabled regions to stderr.\n");
+    fprintf(stderr, "                 Use hex numbers. For reference, see listing of disabled regions in listing mode.\n");
     exit(exitcode);
 }
 
@@ -118,7 +118,7 @@ int main(int argc, char **argv)
                 if (sscanf(argv[i], "%x:%x", &begin, &end) != 2)
                     fprintf(stderr, "Option -e : Failed to parse a hex memory address range.\n"), usageandexit(1);
                 if (begin > end)
-                    fprintf(stderr, "Option -e : Starting address must be smaller or equal than end address.\n"), usageandexit(1);
+                    fprintf(stderr, "Option -e : Starting address must be smaller or equal than end address.\n"), exit(1);
                 if (!addregion(enaregs, begin, end))
                     fprintf(stderr, "Error allocating memory\n"), exit(1);
             } else
@@ -137,12 +137,13 @@ int main(int argc, char **argv)
             wl = parseihexfile(filename);
             break;
         /* Other file types goes here... */
+
         case FILETYPE_UNKNOWN:
-            fprintf(stderr, "Unknown file type %s\n", filename), usageandexit(1);
-            break;
+            fprintf(stderr, "Unknown file type %s\n", filename);
+            return 1;
         case FILETYPE_ERROR:
-            fprintf(stderr, "Error occured during determining file type %s\n", filename), exit(1);
-            break;
+            fprintf(stderr, "Error occured during determining file type %s\n", filename);
+            return 1;
     }
 
     emitavrasm(wl, enaregs, listing);
