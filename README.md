@@ -43,15 +43,15 @@ You can use the `-h` option to show the usage.
 `$ avrdis -h`
 
 ```
-AVR Disassembler for the 8-bit AVRs. v1.0.0 (c) Imre Horvath, 2023
+AVR Disassembler for the 8-bit AVRs. v1.0.0 (c) Imre Horvath, 2024
 Usage: avrdis [options] inputfile
 Currently supported inputfile types are: IHEX
   IHEX: Intel hex format, file should have an extension .hex
 Options:
   -h : Show this usage info and exit.
-  -l : List word addresses and raw instructions together with the disassembled code.
+  -l : List disabled regions, word addresses and raw instructions together with the disassembled code.
   -e nnnn:nnnn : Enable disassembly of otherwise disabled region. Multiple options are possible.
-                 Use hex numbers. For reference, see listing of disabled regions to stderr.
+                 Use hex numbers. For reference, see listing of disabled regions in listing mode.
 ```
 
 ## Example
