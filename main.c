@@ -52,7 +52,7 @@ char *fileextension(char *filename)
     return NULL;
 }
 
-int deterfiletype(char *filename)
+enum filetype deterfiletype(char *filename)
 {
     int check;
     char *ext = fileextension(filename);
@@ -61,7 +61,8 @@ int deterfiletype(char *filename)
     if (ext) {
         if (!strcmpnocase(ext, "hex"))
             return FILETYPE_IHEX;
-        /* More extension types goes here below... */
+        /* TODO: More extension types goes here below... */
+
     }
 
     /* Otherwise, try to infer type by its contents */
@@ -69,7 +70,7 @@ int deterfiletype(char *filename)
         return FILETYPE_ERROR;
     if (check)
         return FILETYPE_IHEX;
-    /* More file type-checks goes here below... */
+    /* TODO: More file type-checks goes here below... */
 
     return FILETYPE_UNKNOWN;
 }
@@ -133,17 +134,17 @@ int main(int argc, char **argv)
         fprintf(stderr, "No filename specified\n"), usageandexit(1);
 
     switch (deterfiletype(filename)) {
-        case FILETYPE_IHEX:
-            wl = parseihexfile(filename);
-            break;
-        /* Other file types goes here... */
-
-        case FILETYPE_UNKNOWN:
-            fprintf(stderr, "Unknown file type %s\n", filename);
-            return 1;
         case FILETYPE_ERROR:
             fprintf(stderr, "Error occured during determining file type %s\n", filename);
             return 1;
+        case FILETYPE_UNKNOWN:
+            fprintf(stderr, "Unknown file type %s\n", filename);
+            return 1;
+        case FILETYPE_IHEX:
+            wl = parseihexfile(filename);
+            break;
+        /* TODO: Other file types goes here... */
+
     }
 
     emitavrasm(wl, enaregs, listing);
