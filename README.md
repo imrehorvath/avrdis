@@ -7,7 +7,7 @@ Output is written to stdout. In case of a successful run, the exit status is 0. 
 ## Design- and Implementation considerations
 
 - Maximum portability. Written in C and uses libc only, no extra libraries needed.
-- Loosely coupled modular design, with clearly separated parts makes it easy to extend with new input format parsers without touching other parts.
+- Loosely coupled modular design, with clearly separated parts makes it easy to extend eg. with new input format parsers without touching other parts.
 
 ## Typical Use Case
 
@@ -161,9 +161,9 @@ C:00023 0706     .dw 0x0706
 C:00024 0908     .dw 0x0908
 ```
 
-The first two lines in the output are the program memory ranges, which were excluded from disassembly. Why were these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis of the code, or simulation of runtime behavior to infer possible code regions for disassembly.
+The first two lines in the output are the program memory ranges, which were excluded from disassembly. Why were these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis, or simulation of runtime behavior to infer possible code regions for disassembly.
 
-The reason for this complexity comes from the fact that AVRs use a Modified Harvard Architecture which allows parts of the program memory to be accessed as data. This is very useful to store read-only data like character strings or data tables directly in the program memory. (Note that the SRAM is either absent, or rather limited in AVRs as opposed to the program memory.)
+The reason for this complexity comes from the fact that AVRs use a Modified Harvard Architecture which allows parts of the program memory to be accessed as data. This is very useful to store read-only data like character strings or data tables directly in the program memory.
 
 So since code and data can co-exist in the program memory and the interpreptation of data as code can lead to issues during disassembly when label addresses gets collected, `avrdis` uses a simple approach to disassemble the parts only, that are directly accessible from the branching instructions, thus guarantied to be code.
 
@@ -171,7 +171,7 @@ The parts which are potentionally data, gets emitted as `.dw 0xnnnn`. To enable 
 
 The full disassembly of a "mixed" firmware usually takes multiple iterations using the `-l` and `-e` options together, to explore the non-trivial parts.
 
-After exploration of the above example, use the `-l` and `-e` options to get a listing of the properly disassembled code, with code words disassembled and data left as it is. The word address range `0x0020:0x0024` condains the data, that is referred by the `ldi` instructions at addresses `C:00015` and `C:00016` as decimal byte address high and low respectively. (Note that the word address `0x0020` translates to the byte address `0x0040` which is 0 high and 64 low in decimal.)
+After exploration of the above example, use the `-l` and `-e` options to get a listing of the properly disassembled code, with code words disassembled and data left intact. The word address range `0x0020:0x0024` condains the data, that is referred by the `ldi` instructions at addresses `C:00015` and `C:00016` as decimal byte address high and low respectively. (Note that the word address `0x0020` translates to the byte address `0x0040` which is 0 high and 64 low in decimal.)
 
 `$ avrdis -l -e 4:4 foo.hex`
 
