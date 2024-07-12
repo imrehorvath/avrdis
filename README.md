@@ -117,7 +117,7 @@ L0: in r16, 0x03
     .dw 0x0908
 ```
 
-Notice that there are a lot of not disassembled instruction words with `.dw 0xnnnn` after the `ijmp` instruction in the output! To get more insight, use the `-l` option.
+Notice the raw instruction words in the form of `.dw 0xnnnn` after the `.org 0x0004` or after the `ijmp` instruction in the output! To get more insight, use the `-l` option.
 
 `$ avrdis -l foo.hex`
 
@@ -161,7 +161,7 @@ C:00023 0706     .dw 0x0706
 C:00024 0908     .dw 0x0908
 ```
 
-The first two lines in the output are the program memory ranges, which were excluded from disassembly. Why were these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis, or simulation of runtime behavior to infer possible code regions for disassembly.
+The first two lines in this example, are the program memory ranges, which were excluded from disassembly. Why were these excluded? Because `avrdis` is a simple disassembler that can only follow the relative and absolute addresses from the branching instructions and does not try to perform semantic analysis, or simulation of runtime behavior to infer possible code regions for disassembly.
 
 The reason for this complexity comes from the fact that AVRs use a Modified Harvard Architecture which allows parts of the program memory to be accessed as data. This is very useful to store read-only data like character strings or data tables directly in the program memory.
 
