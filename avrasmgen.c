@@ -1561,7 +1561,10 @@ void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing)
             else
                 printf("ld r%d, %s\n", d, operand);
         else if (ldi(wl->word, &d, &K))
-            printf("ldi r%d, %d\n", d+16, K);
+            if (K != 0xff)
+                printf("ldi r%d, %d\n", d+16, K);
+            else
+                printf("ser r%d\n", d+16);
         else if (lds(wl, &thirtytwobit, &d, &k)) {
             printf("lds r%d, 0x%02x\n", d, k);
             if (thirtytwobit) {
