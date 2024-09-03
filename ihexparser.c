@@ -30,9 +30,7 @@ enum recordtype {
 static int parsehexbyte(FILE *fp, uint8_t *b)
 {
     int i, c;
-    char buf[3];
-
-    memset(buf, '\0', sizeof(buf));
+    char buf[] = {'\0', '\0', '\0'};
 
     for (i = 0; i < 2; i++) {
         if (!isxdigit(c = fgetc(fp))) {
