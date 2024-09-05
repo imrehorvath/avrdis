@@ -1143,7 +1143,6 @@ static struct labelstruct *alloclabels(void)
             free(ls);
             return NULL;
         }
-        ls->labelscount = 0;
         ls->labelssize = DEFAULT_LABELS_SIZE;
     }
     return ls;

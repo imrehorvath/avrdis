@@ -189,8 +189,10 @@ struct wordlist *parseihexfile(const char *filename)
                         return NULL;
                     }
 
-                    /* Fill word structure */
-                    newword->next = NULL;
+                    /* Zero out allocated memory */
+                    memset(newword, 0, sizeof(struct wordlist));
+
+                    /* Populate word structure with data */
                     newword->wordaddress = wordaddress;
                     newword->word = (wdh << 8) | wdl;
  
