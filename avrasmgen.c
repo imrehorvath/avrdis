@@ -1535,11 +1535,11 @@ void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing)
             else
                 printf("clr r%d\n", d);
         else if (fmul(wl->word, &d, &r))
-            printf("fmul r%d, r%d\n", d+16, r);
+            printf("fmul r%d, r%d\n", d+16, r+16);
         else if (fmuls(wl->word, &d, &r))
-            printf("fmuls r%d, r%d\n", d+16, r);
+            printf("fmuls r%d, r%d\n", d+16, r+16);
         else if (fmulsu(wl->word, &d, &r))
-            printf("fmulsu r%d, r%d\n", d+16, r);
+            printf("fmulsu r%d, r%d\n", d+16, r+16);
         else if (wl->word == 0x9509)
             printf("icall\n");
         else if (ijmp(wl->word))
