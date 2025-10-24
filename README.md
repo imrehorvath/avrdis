@@ -34,7 +34,7 @@ This will install the `avrdis` executable into `/usr/local/bin` by default.
 
 In case you wish to install it elsewhere, you can set a different `PREFIX`.
 
-`$ make install PREFIX=~/temp`
+`$ make PREFIX=~/temp install`
 
 This will install the `avrdis` executable into `~/temp/bin`.
 
