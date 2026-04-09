@@ -118,34 +118,34 @@ int main(int argc, char **argv)
             if (!strcmp(argv[i], "-l"))
                 listing = 1;
             else if (!strcmp(argv[i], "-h")) {
-                freeregions(enaregs);
                 printusage();
+                freeregions(enaregs);
                 return 0;   /* Success */
             } else if (!strcmp(argv[i], "-e")) {
                 if (i+1 >= argc) {
-                    freeregions(enaregs);
                     fprintf(stderr, "Address after option -e missing.\n");
+                    freeregions(enaregs);
                     return 1;   /* Error */
                 }
                 i++;
                 if (sscanf(argv[i], "%x:%x", &begin, &end) != 2) {
-                    freeregions(enaregs);
                     fprintf(stderr, "Option -e : Failed to parse a hex memory address range.\n");
+                    freeregions(enaregs);
                     return 1;   /* Error */
                 }
                 if (begin > end) {
-                    freeregions(enaregs);
                     fprintf(stderr, "Option -e : Starting address must be smaller or equal than end address.\n");
+                    freeregions(enaregs);
                     return 1;   /* Error */
                 }
                 if (!addregion(enaregs, begin, end)) {
-                    freeregions(enaregs);
                     fprintf(stderr, "Error allocating memory\n");
+                    freeregions(enaregs);
                     return 1;   /* Error */
                 }
             } else {
-                freeregions(enaregs);
                 fprintf(stderr, "Invalid option %s\n", argv[i]);
+                freeregions(enaregs);
                 return 1;   /* Error */
             }
         } else {
@@ -153,27 +153,27 @@ int main(int argc, char **argv)
             if (!filename)
                 filename = argv[i];
             else {
-                freeregions(enaregs);
                 fprintf(stderr, "%s expects a single filename\n", command);
+                freeregions(enaregs);
                 return 1;   /* Error */
             }
         }
     }
 
     if (!filename) {
-        freeregions(enaregs);
         fprintf(stderr, "No filename specified\n");
+        freeregions(enaregs);
         return 1;   /* Error */
     }
 
     switch (deterfiletype(filename)) {
         case FILETYPE_ERROR:
-            freeregions(enaregs);
             fprintf(stderr, "Error occured during determining file type %s\n", filename);
+            freeregions(enaregs);
             return 1;   /* Error */
         case FILETYPE_UNKNOWN:
-            freeregions(enaregs);
             fprintf(stderr, "Unknown file type %s\n", filename);
+            freeregions(enaregs);
             return 1;   /* Error */
         case FILETYPE_IHEX:
             wl = parseihexfile(filename);
