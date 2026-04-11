@@ -212,6 +212,7 @@ struct wordlist *parseihexfile(const char *filename)
                             lineno, filename);
                     freewordlist(firstdatarecword);
                     freewordlist(firstword);
+                    fclose(fp);
                     return NULL;
                 }
 
@@ -269,6 +270,7 @@ struct wordlist *parseihexfile(const char *filename)
                             "\"Extended Segment Address\" record at line %d in file %s\n", 
                             lineno, filename);
                     freewordlist(firstword);
+                    fclose(fp);
                     return NULL;
                 }
 
