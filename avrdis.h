@@ -39,14 +39,14 @@ void freewordlist(struct wordlist *wl);
 struct regionstruct *allocregions(void);
 void freeregions(struct regionstruct *rs);
 int addregion(struct regionstruct *rs, uint32_t begin, uint32_t end);
-struct region *inregionswithprev(struct regionstruct *rs, uint32_t wordaddress, struct region **prevp);
+struct region *inregionswithprev(struct regionstruct *rs, uint32_t wordaddress, struct region **prev);
 struct region *inregions(struct regionstruct *rs, uint32_t wordaddress);
 void printregions(struct regionstruct *rs);
 
 int strcmpnocase(const char *lhs, const char *rhs);
 
 int ihexfile(const char *filename);
-int parseihexfile(const char *filename, struct wordlist **wlp);
+int parseihexfile(const char *filename, struct wordlist **wl);
 
 void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing);
 

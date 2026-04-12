@@ -70,14 +70,14 @@ int ihexfile(const char *filename)
     return res;
 }
 
-int parseihexfile(const char *filename, struct wordlist **wlp)
+int parseihexfile(const char *filename, struct wordlist **wl)
 {
     int c, lineno = 1, eofr = 0, recparsed = 0;
     uint8_t bytecount, rectype, chksum, wordcount, wdh, wdl, wordsum, addrh, addrl;
     uint8_t extsah, extsal;
     uint16_t extsegaddr = 0;
     uint32_t wordaddress;
-    struct wordlist *newword, *wl, *firstdatarecword, *lastdatarecword;
+    struct wordlist *newword, *drwl, *firstdrword, *lastdrword;
     struct wordlist *firstword = NULL, *lastword = NULL;
     FILE *fp;
 
@@ -101,7 +101,7 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
             fprintf(stderr, 
                     "Record after \"End Of File\" record found at line %d in file %s.\n", 
                     lineno, filename);
-            goto err_proc;
+            goto err_process;
         }
 
         /* Parse record fields */
@@ -111,7 +111,7 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
             fprintf(stderr, 
                     "Error parsing \"byte count\" in record at line %d in file %s.\n", 
                     lineno, filename);
-            goto err_proc;
+            goto err_process;
         }
 
         /* Address high byte */
@@ -119,7 +119,7 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
             fprintf(stderr, 
                     "Error parsing \"address\" high byte in record at line %d in file %s.\n", 
                     lineno, filename);
-            goto err_proc;
+            goto err_process;
         }
 
         /* Address low byte */
@@ -127,7 +127,7 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
             fprintf(stderr, 
                     "Error parsing \"address\" low byte in record at line %d in file %s.\n", 
                     lineno, filename);
-            goto err_proc;
+            goto err_process;
         }
 
         /* Record type */
@@ -135,7 +135,7 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
             fprintf(stderr, 
                     "Error parsing \"record type\" in record at line %d in file %s.\n", 
                     lineno, filename);
-            goto err_proc;
+            goto err_process;
         }
 
         /* Process records based on their type */
@@ -144,7 +144,7 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
             case RECORDTYPE_IHEX_DATA_RECORD:
 
                 wordaddress = ((extsegaddr << 4) + ((addrh << 8) | addrl)) >> 1;
-                firstdatarecword = lastdatarecword = NULL;
+                firstdrword = lastdrword = NULL;
 
                 /* Data word parser loop */
                 for (wordcount = bytecount >> 1; wordcount; wordcount--, wordaddress++) {
@@ -154,7 +154,7 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
                         fprintf(stderr, 
                                 "Error parsing \"word\" low byte in record at line %d in file %s.\n", 
                                 lineno, filename);
-                        goto err_datrec;
+                        goto err_datarecord;
                     }
 
                     /* Parse data word high byte */
@@ -162,14 +162,14 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
                         fprintf(stderr, 
                                 "Error parsing \"word\" high byte in record at line %d in file %s.\n", 
                                 lineno, filename);
-                        goto err_datrec;
+                        goto err_datarecord;
                     }
 
                     /* Allocate word structure */
                     newword = (struct wordlist *) malloc(sizeof(struct wordlist));
                     if (!newword) {
                         fprintf(stderr, "Error allocating memory.\n");
-                        goto err_datrec;
+                        goto err_datarecord;
                     }
 
                     /* Zero out allocated memory */
@@ -180,11 +180,11 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
                     newword->word = (wdh << 8) | wdl;
  
                     /* Link the data record word into a list */
-                    if (!firstdatarecword)
-                        firstdatarecword = newword;
+                    if (!firstdrword)
+                        firstdrword = newword;
                     else
-                        lastdatarecword->next = newword;
-                    lastdatarecword = newword;
+                        lastdrword->next = newword;
+                    lastdrword = newword;
 
                 } /* Data word parser loop */
 
@@ -193,25 +193,25 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
                     fprintf(stderr, 
                             "Error parsing \"checksum\" in record at line %d in file %s.\n", 
                             lineno, filename);
-                    goto err_datrec;
+                    goto err_datarecord;
                 }
 
                 /* Calculate data word sum for checksum check */
-                for (wordsum = 0, wl = firstdatarecword; wl; wl = wl->next)
-                    wordsum += (wl->word >> 8) + (wl->word & 0xff);
+                for (wordsum = 0, drwl = firstdrword; drwl; drwl = drwl->next)
+                    wordsum += (drwl->word >> 8) + (drwl->word & 0xff);
 
                 /* Check checksum */
                 if ((uint8_t) (bytecount + addrh + addrl + rectype + wordsum + chksum) != 0) {
                     fprintf(stderr, "Checksum error at line %d in file %s.\n", lineno, filename);
-                    goto err_datrec;
+                    goto err_datarecord;
                 }
 
                 /* Add accumulated list of data words to the word list */
                 if (!firstword)
-                    firstword = firstdatarecword;
+                    firstword = firstdrword;
                 else
-                    lastword->next = firstdatarecword;
-                lastword = lastdatarecword;
+                    lastword->next = firstdrword;
+                lastword = lastdrword;
 
                 recparsed = 1;  /* Flag record has been parsed */
                 break;
@@ -222,13 +222,13 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
                     fprintf(stderr, 
                             "Error parsing \"checksum\" in record at line %d in file %s.\n", 
                             lineno, filename);
-                    goto err_proc;
+                    goto err_process;
                 }
 
                 /* Check checksum */
                 if ((uint8_t) (bytecount + addrh + addrl + rectype + chksum) != 0) {
                     fprintf(stderr, "Checksum error at line %d in file %s.\n", lineno, filename);
-                    goto err_proc;
+                    goto err_process;
                 }
 
                 eofr = 1;       /* Flag "End Of File" record */
@@ -242,7 +242,7 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
                     fprintf(stderr, 
                             "\"Extended Segment Address\" record at line %d in file %s\n", 
                             lineno, filename);
-                    goto err_proc;
+                    goto err_process;
                 }
 
                 /* Parse the "Extended Segment Address" address */
@@ -250,26 +250,26 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
                     fprintf(stderr, 
                             "Error parsing \"segment base address\" high byte in record at line %d in file %s.\n", 
                             lineno, filename);
-                    goto err_proc;
+                    goto err_process;
                 }
                 if (!parsehexbyte(fp, &extsal)) {
                     fprintf(stderr, 
                             "Error parsing \"segment base address\" low byte in record at line %d in file %s.\n", 
                             lineno, filename);
-                    goto err_proc;
+                    goto err_process;
                 }
     
                 /* Parse checksum */
                 if (!parsehexbyte(fp, &chksum)) {
                     fprintf(stderr, "Error parsing \"checksum\" in record at line %d in file %s.\n", 
                     lineno, filename);
-                    goto err_proc;
+                    goto err_process;
                 }
  
                 /* Check checksum */
                 if ((uint8_t) (bytecount + addrh + addrl + rectype + extsah + extsal + chksum) != 0) {
                     fprintf(stderr, "Checksum error at line %d in file %s.\n", lineno, filename);
-                    goto err_proc;
+                    goto err_process;
                 }
 
                 extsegaddr = (extsah << 8) | extsal;
@@ -311,18 +311,18 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
         fprintf(stderr, 
                 "No \"End Of File\" record was found when reaching the end of file %s\n", 
                 filename);
-        goto err_proc;
+        goto err_process;
     }
 
     /* Success */
-    *wlp = firstword;
+    *wl = firstword;
     fclose(fp);
     return 0;
 
-    /* Error */
-err_datrec:
-    freewordlist(firstdatarecword);
-err_proc:
+    /* Error (Cascading Cleanup Section) */
+err_datarecord:
+    freewordlist(firstdrword);
+err_process:
     freewordlist(firstword);
     fclose(fp);
 err_file:
