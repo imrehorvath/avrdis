@@ -43,7 +43,7 @@ You can use the `-h` option to show the usage.
 `$ avrdis -h`
 
 ```
-AVR Disassembler for the 8-bit AVRs. v1.0.0 (c) Imre Horvath, 2024
+AVR Disassembler for the 8-bit AVRs. v1.0.0 (c) Imre Horvath, 2023, 2024, 2025, 2026
 Usage: avrdis [options] inputfile
 Currently supported inputfile types are: IHEX
   IHEX: Intel hex format, file should have an extension .hex

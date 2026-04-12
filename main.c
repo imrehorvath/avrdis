@@ -77,7 +77,7 @@ enum filetype deterfiletype(char *filename)
 
 void printusage(void)
 {
-    fprintf(stderr, "AVR Disassembler for the 8-bit AVRs. v%s (c) Imre Horvath, 2023\n", VERSION);
+    fprintf(stderr, "AVR Disassembler for the 8-bit AVRs. v%s (c) Imre Horvath, 2023, 2024, 2025, 2026\n", VERSION);
     fprintf(stderr, "Usage: %s [options] inputfile\n", command);
 
 #define USAGE_DESCRIPTION "Currently supported inputfile types are: IHEX\n" \
