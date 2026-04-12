@@ -317,7 +317,7 @@ int parseihexfile(const char *filename, struct wordlist **wlp)
     /* Success */
     *wlp = firstword;
     fclose(fp);
-    return 1;
+    return 0;
 
     /* Error */
 err_datrec:
