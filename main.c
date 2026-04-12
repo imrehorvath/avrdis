@@ -166,7 +166,8 @@ int main(int argc, char **argv)
             fprintf(stderr, "Unknown file type %s\n", filename);
             goto err_reg;
         case FILETYPE_IHEX:
-            wl = parseihexfile(filename);
+            if (parseihexfile(filename, &wl) < 0)
+                goto err_reg;
             break;
         /* TODO: Other file types goes here... */
 

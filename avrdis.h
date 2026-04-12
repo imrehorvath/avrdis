@@ -46,7 +46,7 @@ void printregions(struct regionstruct *rs);
 int strcmpnocase(const char *lhs, const char *rhs);
 
 int ihexfile(const char *filename);
-struct wordlist *parseihexfile(const char *filename);
+int parseihexfile(const char *filename, struct wordlist **wlp);
 
 void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing);
 
