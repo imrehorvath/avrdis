@@ -39,7 +39,7 @@ void freewordlist(struct wordlist *wl);
 struct regionstruct *allocregions(void);
 void freeregions(struct regionstruct *rs);
 int addregion(struct regionstruct *rs, uint32_t begin, uint32_t end);
-struct region *inregionswithprev(struct regionstruct *rs, uint32_t wordaddress, struct region **prev);
+struct region *inregionswithprev(struct regionstruct *rs, uint32_t wordaddress, struct region **prevp);
 struct region *inregions(struct regionstruct *rs, uint32_t wordaddress);
 void printregions(struct regionstruct *rs);
 

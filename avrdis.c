@@ -68,14 +68,14 @@ int addregion(struct regionstruct *rs, uint32_t begin, uint32_t end)
     return 1;
 }
 
-struct region *inregionswithprev(struct regionstruct *rs, uint32_t wordaddress, struct region **prev)
+struct region *inregionswithprev(struct regionstruct *rs, uint32_t wordaddress, struct region **prevp)
 {
     struct region *r, *pr = NULL;
 
     for (r = rs->first; r; r = r->next) {
         if (r->begin <= wordaddress && wordaddress <= r->end) {
-            if (prev)
-                *prev = pr;
+            if (prevp)
+                *prevp = pr;
             return r;
         }
         pr = r;
