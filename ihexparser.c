@@ -48,9 +48,10 @@ static int parsehexbyte(FILE *fp, uint8_t *b)
 
 int ihexfile(const char *filename)
 {
-    FILE *fp = fopen(filename, "r");
     int c, res = 0;
+    FILE *fp;
 
+    fp = fopen(filename, "r");
     if (!fp) {
         fprintf(stderr, "Error opening file: %s\n", filename);
         return -1;
