@@ -161,7 +161,6 @@ int main(int argc, char **argv)
 
     switch (deterfiletype(filename)) {
         case FILETYPE_ERROR:
-            fprintf(stderr, "Error occured during determining file type %s\n", filename);
             goto err_reg;
         case FILETYPE_UNKNOWN:
             fprintf(stderr, "Unknown file type %s\n", filename);
