@@ -93,6 +93,7 @@ void printusage(void)
 
 int main(int argc, char **argv)
 {
+    int res = 1;    /* Error */
     int i, listing = 0;
     char *filename = NULL;
     struct wordlist *wl = NULL;
@@ -103,13 +104,13 @@ int main(int argc, char **argv)
 
     if (argc < 2) {
         printusage();
-        return 1;   /* Error */
+        goto err;
     }
 
     enaregs = allocregions();
     if (!enaregs) {
         fprintf(stderr, "Error allocating memory\n");
-        return 1;   /* Error */
+        goto err;
     }
 
     for (i = 1; i < argc; i++) {
@@ -119,34 +120,28 @@ int main(int argc, char **argv)
                 listing = 1;
             else if (!strcmp(argv[i], "-h")) {
                 printusage();
-                freeregions(enaregs);
-                return 0;   /* Success */
+                goto out;
             } else if (!strcmp(argv[i], "-e")) {
                 if (i+1 >= argc) {
                     fprintf(stderr, "Address after option -e missing.\n");
-                    freeregions(enaregs);
-                    return 1;   /* Error */
+                    goto err_reg;
                 }
                 i++;
                 if (sscanf(argv[i], "%x:%x", &begin, &end) != 2) {
                     fprintf(stderr, "Option -e : Failed to parse a hex memory address range.\n");
-                    freeregions(enaregs);
-                    return 1;   /* Error */
+                    goto err_reg;
                 }
                 if (begin > end) {
                     fprintf(stderr, "Option -e : Starting address must be smaller or equal than end address.\n");
-                    freeregions(enaregs);
-                    return 1;   /* Error */
+                    goto err_reg;
                 }
                 if (!addregion(enaregs, begin, end)) {
                     fprintf(stderr, "Error allocating memory\n");
-                    freeregions(enaregs);
-                    return 1;   /* Error */
+                    goto err_reg;
                 }
             } else {
                 fprintf(stderr, "Invalid option %s\n", argv[i]);
-                freeregions(enaregs);
-                return 1;   /* Error */
+                goto err_reg;
             }
         } else {
             /* Process arguments */
@@ -154,27 +149,23 @@ int main(int argc, char **argv)
                 filename = argv[i];
             else {
                 fprintf(stderr, "%s expects a single filename\n", command);
-                freeregions(enaregs);
-                return 1;   /* Error */
+                goto err_reg;
             }
         }
     }
 
     if (!filename) {
         fprintf(stderr, "No filename specified\n");
-        freeregions(enaregs);
-        return 1;   /* Error */
+        goto err_reg;
     }
 
     switch (deterfiletype(filename)) {
         case FILETYPE_ERROR:
             fprintf(stderr, "Error occured during determining file type %s\n", filename);
-            freeregions(enaregs);
-            return 1;   /* Error */
+            goto err_reg;
         case FILETYPE_UNKNOWN:
             fprintf(stderr, "Unknown file type %s\n", filename);
-            freeregions(enaregs);
-            return 1;   /* Error */
+            goto err_reg;
         case FILETYPE_IHEX:
             wl = parseihexfile(filename);
             break;
@@ -184,7 +175,12 @@ int main(int argc, char **argv)
 
     emitavrasm(wl, enaregs, listing);
     freewordlist(wl);
-    freeregions(enaregs);
 
-    return 0;   /* Success */
+out:
+    res = 0;    /* Success */
+
+err_reg:
+    freeregions(enaregs);
+err:
+    return res;
 }
