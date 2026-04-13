@@ -77,7 +77,7 @@ int parseihexfile(const char *filename, struct wordlist **wl)
     uint8_t extsah, extsal;
     uint16_t extsegaddr = 0;
     uint32_t wordaddress;
-    struct wordlist *newword, *drwl, *firstdrword, *lastdrword;
+    struct wordlist *newword, *drwl, *firstdrw, *lastdrw;
     struct wordlist *firstword = NULL, *lastword = NULL;
     FILE *fp;
 
@@ -144,7 +144,7 @@ int parseihexfile(const char *filename, struct wordlist **wl)
             case RECORDTYPE_IHEX_DATA_RECORD:
 
                 wordaddress = ((extsegaddr << 4) + ((addrh << 8) | addrl)) >> 1;
-                firstdrword = lastdrword = NULL;
+                firstdrw = lastdrw = NULL;
 
                 /* Data word parser loop */
                 for (wordcount = bytecount >> 1; wordcount; wordcount--, wordaddress++) {
@@ -180,11 +180,11 @@ int parseihexfile(const char *filename, struct wordlist **wl)
                     newword->word = (wdh << 8) | wdl;
  
                     /* Link the data record word into a list */
-                    if (!firstdrword)
-                        firstdrword = newword;
+                    if (!firstdrw)
+                        firstdrw = newword;
                     else
-                        lastdrword->next = newword;
-                    lastdrword = newword;
+                        lastdrw->next = newword;
+                    lastdrw = newword;
 
                 } /* Data word parser loop */
 
@@ -197,7 +197,7 @@ int parseihexfile(const char *filename, struct wordlist **wl)
                 }
 
                 /* Calculate data word sum for checksum check */
-                for (wordsum = 0, drwl = firstdrword; drwl; drwl = drwl->next)
+                for (wordsum = 0, drwl = firstdrw; drwl; drwl = drwl->next)
                     wordsum += (drwl->word >> 8) + (drwl->word & 0xff);
 
                 /* Check checksum */
@@ -206,12 +206,12 @@ int parseihexfile(const char *filename, struct wordlist **wl)
                     goto err_datarecord;
                 }
 
-                /* Add accumulated list of data words to the word list */
+                /* Link the list of accumulated data words into the word list */
                 if (!firstword)
-                    firstword = firstdrword;
+                    firstword = firstdrw;
                 else
-                    lastword->next = firstdrword;
-                lastword = lastdrword;
+                    lastword->next = firstdrw;
+                lastword = lastdrw;
 
                 recparsed = 1;  /* Flag record has been parsed */
                 break;
@@ -315,16 +315,16 @@ int parseihexfile(const char *filename, struct wordlist **wl)
     }
 
     /* Success */
-    *wl = firstword;
+    *wl = firstword;    /* Set the word list as output */
     fclose(fp);
-    return 0;
+    return 0;   /* Signal success */
 
     /* Error (Cascading Cleanup Section) */
 err_datarecord:
-    freewordlist(firstdrword);
+    freewordlist(firstdrw);
 err_process:
     freewordlist(firstword);
     fclose(fp);
 err_file:
-    return -1;
+    return -1;  /* Signal failure */
 }
