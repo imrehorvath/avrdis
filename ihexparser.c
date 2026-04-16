@@ -72,6 +72,7 @@ int ihexfile(const char *filename)
 
 int parseihexfile(const char *filename, struct wordlist **wl)
 {
+    int res = 0;    /* Default to error */
     int c, lineno = 1, eofr = 0, recparsed = 0;
     uint8_t bytecount, rectype, chksum, wordcount, wdh, wdl, wordsum, addrh, addrl;
     uint8_t extsah, extsal;
@@ -314,17 +315,17 @@ int parseihexfile(const char *filename, struct wordlist **wl)
         goto err_process;
     }
 
-    /* Success */
     *wl = firstword;    /* Set the word list as output */
-    fclose(fp);
-    return 0;   /* Signal success */
+    res = 1;            /* Success */
+    goto out;
 
-    /* Error (Cascading Cleanup Section) */
+    /* Cascading Cleanup Section */
 err_datarecord:
     freewordlist(firstdrw);
 err_process:
     freewordlist(firstword);
+out:
     fclose(fp);
 err_file:
-    return -1;  /* Signal failure */
+    return res;
 }

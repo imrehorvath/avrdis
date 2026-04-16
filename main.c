@@ -93,7 +93,7 @@ void printusage(void)
 
 int main(int argc, char **argv)
 {
-    int res = 1;    /* Error */
+    int res = 1;    /* Default to error */
     int i, listing = 0;
     char *filename = NULL;
     struct wordlist *wl = NULL;
@@ -166,7 +166,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "Unknown file type %s\n", filename);
             goto err_reg;
         case FILETYPE_IHEX:
-            if (parseihexfile(filename, &wl) < 0)
+            if (!parseihexfile(filename, &wl))
                 goto err_reg;
             break;
         /* TODO: Other file types goes here... */
