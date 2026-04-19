@@ -1386,7 +1386,7 @@ static const char *lookuplabel(struct labelstruct *ls, uint32_t wordaddress)
     return NULL;
 }
 
-void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing)
+int emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing)
 {
     const char *label, *mnemonic, *operand;
     int d, r, b, k, K, A, q;
@@ -1399,16 +1399,16 @@ void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing)
 
     if ((ls = alloclabels()) == NULL) {
         fprintf(stderr, "Error allocating memory\n");
-        return;
+        return 0;   /* Error */
     }
 
     if ((disregs = allocregions()) == NULL) {
         fprintf(stderr, "Error allocating memory\n");
-        return;
+        return 0;   /* Error */
     }
 
     if (!collectlabels(wl, ls, enaregs, disregs))
-        return;
+        return 0;   /* Error */
 
     /* Print disabled regions in lising mode only */
     if (listing)
@@ -1677,4 +1677,6 @@ void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing)
 
     freeregions(disregs);
     freelabels(ls);
+
+    return 1;   /* Success */
 }

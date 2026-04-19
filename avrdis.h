@@ -48,6 +48,6 @@ int strcmpnocase(const char *lhs, const char *rhs);
 int ihexfile(const char *filename);
 int parseihexfile(const char *filename, struct wordlist **wl);
 
-void emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing);
+int emitavrasm(struct wordlist *wl, struct regionstruct *enaregs, int listing);
 
 #endif /* _AVRDIS_H_ */

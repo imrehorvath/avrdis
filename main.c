@@ -173,12 +173,14 @@ int main(int argc, char **argv)
 
     }
 
-    emitavrasm(wl, enaregs, listing);
-    freewordlist(wl);
+    if (!emitavrasm(wl, enaregs, listing))
+        goto err_emit;
 
 out:
     res = 0;    /* Success */
 
+err_emit:
+    freewordlist(wl);
 err_reg:
     freeregions(enaregs);
 err:
