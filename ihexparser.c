@@ -315,14 +315,19 @@ int parseihexfile(const char *filename, struct wordlist **wl)
         goto err_process;
     }
 
-    *wl = firstword;    /* Set the word list as output */
     res = 1;            /* Success */
-    goto out;
+
+    if (wl) {
+        *wl = firstword;    /* Set the word list as output */
+        goto out;
+    } else
+        goto out_cleanup;
 
     /* Cascading Cleanup Section */
 err_datarecord:
     freewordlist(firstdrw);
 err_process:
+out_cleanup:
     freewordlist(firstword);
 out:
     fclose(fp);
