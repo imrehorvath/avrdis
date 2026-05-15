@@ -18,5 +18,5 @@ clean:
 	rm -f $(OBJECTS) avrdis
 
 install: all
-	install -d $(DESTDIR)$(PREFIX)/bin/
-	install -m 755 avrdis $(DESTDIR)$(PREFIX)/bin/
+	install -m 0775 -d $(DESTDIR)$(PREFIX)/bin/
+	install avrdis $(DESTDIR)$(PREFIX)/bin/
