@@ -160,19 +160,18 @@ int main(int argc, char **argv)
     }
 
     switch (deterfiletype(filename)) {
-        /* Generic error cases */
         case FILETYPE_ERROR:
             goto err_reg;
         case FILETYPE_UNKNOWN:
             fprintf(stderr, "Unknown file type %s\n", filename);
             goto err_reg;
-        /* Specific file types */
+
         case FILETYPE_IHEX:
             if (!parseihexfile(filename, &wl))
                 goto err_reg;
             break;
-        /* TODO: Other file types goes here... */
 
+        /* TODO: Other file types goes here... */
     }
 
     if (!emitavrasm(wl, enaregs, listing))
