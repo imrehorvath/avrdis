@@ -8,6 +8,8 @@ Output is written to stdout. In case of a successful run, the exit status is 0. 
 
 - Maximum portability. Written in C and uses libc only, no extra libraries needed.
 - Loosely coupled modular design, with clearly separated parts makes it easy to extend eg. with new input format parsers without touching other parts.
+- Disassemble parts only, those are guarantied to be code. Provide option to explore parts those might be either code or data. (Enable exploratory, iterative usage.)
+- Generate symbolic labels.
 
 ## Typical Use Case
 
