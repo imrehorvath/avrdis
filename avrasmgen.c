@@ -1226,10 +1226,11 @@ static void sliceregionandcollect(struct wordlist *wl, struct labelstruct *ls, s
 
 static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to, struct labelstruct *ls, struct regionstruct *enaregs, struct regionstruct *disregs)
 {
-    struct wordlist *words, *temp, *prev;
+    struct wordlist *words, *temp;
     uint32_t begin;
     uint32_t targetwordaddr;
-    int i = 0, skip = 0;
+    struct wordlist *prev = NULL;
+    int skip = 0;
 
     for (words = wl; words && words->wordaddress < from; words = words->next);
 
@@ -1263,7 +1264,7 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
                 sliceregionandcollect(wl, ls, enaregs, disregs, targetwordaddr);
                 words = words->next; /* 32-bit opcode */
 
-                if (i > 0 && !skipinstr(prev->word)) {
+                if (prev && !skipinstr(prev->word)) {
                     if (!words->next)
                         break;
                     if (!inregions(enaregs, words->next->wordaddress)) {
@@ -1277,7 +1278,7 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
                     return 0;
                 sliceregionandcollect(wl, ls, enaregs, disregs, targetwordaddr);
 
-                if (i > 0 && !skipinstr(prev->word)) {
+                if (prev && !skipinstr(prev->word)) {
                     if (!words->next)
                         break;
                     if (!inregions(enaregs, words->next->wordaddress)) {
@@ -1289,7 +1290,7 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
             else if (ret(words->word) || reti(words->word) ||
                     ijmp(words->word) || eijmp(words->word)) {
 
-                if (i > 0 && !skipinstr(prev->word)) {
+                if (prev && !skipinstr(prev->word)) {
                     if (!words->next)
                         break;
                     if (!inregions(enaregs, words->next->wordaddress)) {
@@ -1301,8 +1302,6 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
         }   /* if !skip */
 
         prev = temp;
-        if (i < 1)
-            i++;
     }   /* Collect for loop */
 
     if (skip && begin <= prev->wordaddress)
