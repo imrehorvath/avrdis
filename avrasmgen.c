@@ -1226,10 +1226,9 @@ static void sliceregionandcollect(struct wordlist *wl, struct labelstruct *ls, s
 
 static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to, struct labelstruct *ls, struct regionstruct *enaregs, struct regionstruct *disregs)
 {
-    struct wordlist *words, *temp;
+    struct wordlist *words, *temp, *prev = NULL;
     uint32_t begin;
     uint32_t targetwordaddr;
-    struct wordlist *prev = NULL;
     int skip = 0;
 
     for (words = wl; words && words->wordaddress < from; words = words->next);
@@ -1302,7 +1301,7 @@ static int collectlabelsbetween(struct wordlist *wl, uint32_t from, uint32_t to,
         }   /* if !skip */
 
         prev = temp;
-    }   /* Collect for loop */
+    }   /* collect for loop */
 
     if (skip && begin <= prev->wordaddress)
         if (!addregion(disregs, begin, prev->wordaddress))
